@@ -1,434 +1,445 @@
 # nuvia
 
-LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
-partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
-cabo — inclusive descoberta por **broadcast** e **multicast**.
+**English** | [Português](README.pt-BR.md)
 
-> Status: **M0, M1a, M3, M5a, M5b e M5 concluídos**. O Minecraft Java 1.8.5
-> funciona Linux ↔ Windows na LAN e **entre redes diferentes** via relay
-> cifrado na VPS Oracle em São Paulo. A GUI compacta (egui) tem múltiplas redes,
-> IP virtual automático por rede, mesh 2–8 via relay, lista de redes persistida
-> e fechar para a bandeja (tray).
+Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
+and have the other computer see the room as if both were on the same cable —
+including **broadcast** and **multicast** discovery.
 
-## Demonstração
+> Status: **1.0.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> **across different networks** through the encrypted relay on the Oracle VPS in
+> São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
+> machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
+> persisted room list, and close-to-tray.
+
+## Demo
 
 <p align="center">
-  <img src="docs/screenshots/main.png" width="380" alt="Redes ativas, participantes e status por peer">
+  <img src="docs/screenshots/main.png" width="380" alt="Active rooms, participants and per-peer status">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/create-network.png" width="30%" alt="Criar ou entrar em uma rede">
-  <img src="docs/screenshots/relay.png" width="30%" alt="Caminho relay e participante offline">
-  <img src="docs/screenshots/about.png" width="30%" alt="Sobre o nuvia 1.0.0">
+  <img src="docs/screenshots/create-network.png" width="30%" alt="Create or join a network">
+  <img src="docs/screenshots/relay.png" width="30%" alt="Relay path and offline participant">
+  <img src="docs/screenshots/about.png" width="30%" alt="About nuvia 1.0.0">
 </p>
 
-## O que já funciona
+## What already works
 
-- Interface **TAP Layer 2** por processo (`tun-rs`).
-- Handshake **Noise XX** autenticando as chaves estáticas no modo 1:1 (CLI).
-- **Mesh 3–8 peers** na GUI via relay, com chave de grupo por sala.
-- Criptografia **ChaCha20-Poly1305** com contador explícito, AAD e janela de
-  replay de 64 pacotes (UDP fora de ordem é aceito).
-- Chaves de tráfego derivadas do handshake + sementes aleatórias + PSK da sala.
-- Ping/ARP/ICMP atravessando o túnel nos dois sentidos.
-- Flood de broadcast Ethernet (testado com `10.240.0.255`).
-- Rotas de descoberta `224.0.0.0/4`, `224.0.2.60/32` (Minecraft) e
-  `255.255.255.255/32` pelo TAP, com limpeza automática ao encerrar.
-- Multicast de Minecraft (`224.0.2.60:4445`) e broadcast global validados no
-  teste de integração.
-- **Minecraft Java 1.8.5 jogável Linux ↔ Windows** pelo IP virtual: o mundo
-  aberto no Windows aparece no Linux e o anúncio multicast foi capturado no
-  `nuvia-vpn0`.
-- **Modo internet (M5a)**: rendezvous, descoberta de endpoint público e
-  handshake direto entre peers.
-- **Relay M5b**: quando um lado está atrás de CGNAT/NAT simétrico (celular,
-  4G/5G), os pacotes L2 já cifrados são encaminhados pela VPS; validado com
-  Windows no hotspot e Linux em casa, ping ~50 ms e Minecraft LAN funcionando.
-- **GUI compacta multi-rede (egui/eframe)** para Linux e Windows:
-  - menu **REDE** no topo com **CRIAR REDE** e **ENTRAR EM REDE**;
-  - menu **AJUDA** com **Ajustes** e **Sobre**;
-  - entrada por **nome da rede + senha**, sem convite e sem URL de servidor;
-  - **um único TAP e um único IP** para todas as salas (VPN L2 compacta);
-  - cada sala tem sua porta UDP, sessão mesh e chave de grupo;
-  - todas as salas ficam ativas ao mesmo tempo; o TAP compartilhado
-    entrega a descoberta de todas elas ao Minecraft;
-  - barra com botão **ON/OFF**, bolinha de status, usuário e IP do TAP;
-  - **mesh de 2 a 8 participantes por sala**, tentando caminho direto e
-    relay em paralelo; servidor fixo na compilação.
-- Keepalive, detecção de sessão morta e reconexão automática.
-- Teste de integração com dois network namespaces, sem sudo quando user
-  namespaces estão disponíveis.
+- **Layer 2 TAP** interface (`tun-rs`), with a shared hub in the GUI.
+- **Noise XX** handshake authenticating static keys in 1:1 mode (CLI).
+- **2–8-peer mesh** in the GUI over relay and direct paths, with a per-room
+  group key.
+- **ChaCha20-Poly1305** encryption with explicit counters, AAD, and a 64-packet
+  replay window (out-of-order UDP is accepted).
+- Traffic keys derived from the handshake + random seeds + the room PSK.
+- Ping/ARP/ICMP crossing the tunnel in both directions.
+- Ethernet broadcast flooding (tested with `10.240.0.255`).
+- Discovery routes `224.0.0.0/4`, `224.0.2.60/32` (Minecraft), and
+  `255.255.255.255/32` through the TAP, with automatic cleanup on exit.
+- Minecraft multicast (`224.0.2.60:4445`) and global broadcast validated in the
+  integration test.
+- **Minecraft Java 1.8.5 playable Linux ↔ Windows** over the virtual IP: a world
+  opened on Windows appears on Linux, and the multicast announcement was
+  captured on `nuvia-vpn0`.
+- **Internet mode (M5a)**: rendezvous, public endpoint discovery, and direct
+  handshake between peers.
+- **Relay (M5b)**: when one side is behind CGNAT/symmetric NAT (mobile,
+  4G/5G), the already-encrypted L2 packets are forwarded by the VPS; validated
+  with Windows on a hotspot and Linux at home, ~50 ms ping, and Minecraft LAN
+  working.
+- **Compact multi-room GUI (egui/eframe)** for Linux and Windows:
+  - **REDE** (Network) menu at the top with **CRIAR REDE** and **ENTRAR EM
+    REDE**;
+  - **AJUDA** (Help) menu with **Ajustes** and **Sobre**;
+  - entry by **room name + password**, with no invite and no server URL;
+  - **one TAP and one IP** for all rooms (compact L2 VPN);
+  - each room has its own UDP port, mesh session, and group key;
+  - all rooms stay active at the same time; the shared TAP delivers discovery
+    for all of them to Minecraft;
+  - bar with an **ON/OFF** button, status dot, user, and TAP IP;
+  - **2–8 participants per room**, trying direct and relay paths in parallel;
+    the server is fixed at compile time;
+  - **per-participant status**: green = direct, purple = relay, gray =
+    offline/waiting.
+- Keepalive, dead-session detection, and automatic reconnection.
+- Integration test with two network namespaces, no sudo when user namespaces
+  are available.
 
-## Aceite M3 (16/11/2026)
+## M3 acceptance (2026-11-16)
 
-O Windows hospedou Minecraft Java 1.8.5 com **Open to LAN** e o Linux viu e
-entrou no mundo pelo IP virtual. O anúncio de descoberta foi capturado no TAP:
+Windows hosted Minecraft Java 1.8.5 with **Open to LAN**, and Linux saw and
+joined the world through the virtual IP. The discovery announcement was
+captured on the TAP:
 
 ```
 15:18:12.639224 00:ff:c8:62:5f:96 > 01:00:5e:00:02:3c, ethertype IPv4
   10.240.0.2.55625 > 224.0.2.60.4445: UDP, length 45
 ```
 
-- `01:00:5e:00:02:3c` é o MAC multicast de `224.0.2.60`.
-- `10.240.0.2` é o IP virtual do Windows; o Linux é `10.240.0.1`.
-- O cliente Linux estava com a porta `4445` e o grupo `224.0.2.60` no
-  `nuvia-vpn0`.
-- No Windows foi necessário `Set-NetIPInterface -InterfaceMetric 1` no TAP;
-  sem isso, a Ethernet física ganhava a escolha do multicast.
+- `01:00:5e:00:02:3c` is the multicast MAC for `224.0.2.60`.
+- `10.240.0.2` is the Windows virtual IP; Linux was `10.240.0.1`.
+- The Linux client had port `4445` and group `224.0.2.60` on `nuvia-vpn0`.
+- On Windows, `Set-NetIPInterface -InterfaceMetric 1` was required on the TAP;
+  without it, the physical Ethernet won the multicast selection.
 
-## Por que Layer 2
+## Why Layer 2
 
-Jogos anunciam salas com UDP broadcast (`255.255.255.255`) ou multicast
-(Minecraft Java usa `224.0.2.60:4445`). Multicast costuma sair com **TTL 1**, e
-um VPN L3 (WireGuard/Tailscale) roteia e descarta. VPNs L2 comerciais
-funcionam porque entregam um único domínio de broadcast. É exatamente isso que
-o nuvia faz: um switch Ethernet virtual sobre UDP criptografado.
+Games announce rooms with UDP broadcast (`255.255.255.255`) or multicast
+(Minecraft Java uses `224.0.2.60:4445`). Multicast usually leaves with **TTL
+1**, and an L3 VPN (WireGuard/Tailscale) routes and drops it. Commercial L2
+VPNs work because they deliver a single broadcast domain. That is exactly what
+nuvia does: a virtual Ethernet switch over encrypted UDP.
 
-## GUI (Linux e Windows)
+## GUI (Linux and Windows)
 
-A GUI é o caminho recomendado. Ela abre em uma janela pequena (380×540) e não
-pede servidor, caminho, TAP, porta, papel nem IP.
+The GUI is the recommended path. It opens in a small window (380×540) and does
+not ask for a server, path, TAP, port, role, or IP.
 
-1. Abra o `nuvia-gui` como administrador.
-2. Menu **REDE** → **CRIAR REDE** no primeiro PC.
-3. Digite um nome de rede e uma senha; confirme.
-4. No outro PC, menu **REDE** → **ENTRAR EM REDE** com o **mesmo nome** e a
-   **mesma senha**.
+1. Open `nuvia-gui` as administrator.
+2. **REDE** menu → **CRIAR REDE** on the first PC.
+3. Type a room name and a password; confirm.
+4. On the other PC, **REDE** menu → **ENTRAR EM REDE** with the **same name**
+   and **same password**.
 
-O primeiro peer cria a sala no servidor; os demais entram com o mesmo nome e
-senha. A GUI suporta até 8 participantes por sala e várias salas ao mesmo
-tempo, todas no mesmo TAP/IP local. Para jogar:
+The first peer creates the room on the server; the others join with the same
+name and password. The GUI supports up to 8 participants per room and several
+rooms at once, all on the same local TAP/IP. To play:
 
-1. Deixe a rede conectada (o primeiro peer encontrado vira a rede ativa).
-2. Abra o jogo **depois** do nuvia e use **Open to LAN**.
-3. No outro PC, o mundo deve aparecer na lista de LAN.
+1. Keep the room connected.
+2. Open the game **after** nuvia and use **Open to LAN**.
+3. On the other PC, the world should appear in the LAN list.
 
-Com várias redes, use **ATIVAR JOGOS** no cartão da rede que deve receber as
-rotas de descoberta. Só uma rede fica ativa por vez; as demais continuam
-conectadas para acesso por IP. O botão **ON/OFF** da barra desconecta ou
-reconecta a rede ativa sem apagar a rede da lista.
+Discovery routes are installed **once on the shared TAP** and cover every
+connected room; there is no need to activate one room at a time. The **ON/OFF**
+button in the bar connects or disconnects the selected room without removing it
+from the list.
 
-O topo mostra **um único IP de TAP**, igual para todas as salas. Cada cartão é
-uma linha compacta com título e badge; **clique no cartão** para expandir
-abaixo a lista de participantes daquela sala. Como o TAP é compartilhado, o
-Minecraft vê as LANs de todas as salas ativas; as salas não ficam isoladas
-localmente. Clique com o **botão direito** no cartão: **DESATIVAR** desconecta
-aquela sala; **SAIR** remove da lista.
+The top bar shows **one TAP IP**, the same for all rooms. Each card is a compact
+line with a title and badge; **click the card** to expand that room's participant
+list below. Because the TAP is shared, Minecraft sees the LANs of all active
+rooms; rooms are not isolated locally. Right-click the card: **DESATIVAR**
+disconnects that room; **SAIR** removes it from the list.
 
-O menu **AJUDA** contém **Ajustes** (identidade, servidor fixo e privilégios),
-**Sobre** e **Sair**.
+The **AJUDA** menu contains **Ajustes** (identity, fixed server, and
+privileges), **Sobre**, and **Sair**.
 
-As redes são salvas em `rooms.toml` (no mesmo diretório da identidade) e
-restauradas ao abrir, sem conectar automaticamente. Ao fechar a janela, o nuvia
-continua rodando na **bandeja do sistema**; clique no ícone para restaurar a
-janela ou use **Sair** no menu da bandeja/AJUDA. Se o ambiente não tiver bandeja
-(StatusNotifier), fechar encerra normalmente.
+Rooms are saved in `rooms.toml` (in the same directory as the identity) and
+restored on startup without connecting automatically. When you close the
+window, nuvia keeps running in the **system tray**; click the icon to restore
+the window or use **Sair** from the tray/AJUDA menu. If the environment has no
+tray (StatusNotifier), closing exits normally.
 
-No Linux, a GUI precisa de root/CAP_NET_ADMIN para criar o TAP e instalar rotas:
+On Linux, the GUI needs root/CAP_NET_ADMIN to create the TAP and install routes:
 
 ```bash
 cargo build --release -p nuvia-gui
 sudo ./target/release/nuvia-gui
 ```
 
-Se abrir sem root, **Ajustes → Reabrir como admin** usa `pkexec`. No Windows o
-manifesto `requireAdministrator` já pede UAC.
+If it starts without root, **Ajustes → Reabrir como admin** uses `pkexec`. On
+Windows, the `requireAdministrator` manifest requests UAC.
 
-### Servidor e caminho
+### Server and path
 
-O servidor é fixo na compilação:
+The server is fixed at compile time:
 
 ```
 https://167.234.237.6.sslip.io
 ```
 
-Para apontar para outro servidor, recompile com
-`NUVIA_SERVER_URL=https://seu-servidor cargo build --release -p nuvia-gui`.
-Não há campo de URL na interface.
+To point to another server, rebuild with
+`NUVIA_SERVER_URL=https://your-server cargo build --release -p nuvia-gui`.
+There is no URL field in the interface.
 
-A GUI envia os quadros em mesh para os endpoints dos peers **e** pelo relay.
-Além do endpoint público, cada peer anuncia seus IPs locais ao servidor; assim
-duas máquinas na mesma LAN conseguem caminho direto mesmo quando o roteador não
-faz NAT hairpin. Cada participante na lista expandida tem um ponto de status:
-verde = caminho direto, roxo = relay, cinza = offline/aguardando. O badge do
-cartão resume a sala: `DIRETO` só quando todos os participantes ativos estão
-diretos; senão, após 8 s, `RELAY`. O CLI continua com o modo 1:1 AUTO (direto →
-relay).
+The GUI sends mesh frames to the peers' endpoints **and** through the relay. In
+addition to the public endpoint, each peer advertises its local IPs to the
+server; this lets two machines on the same LAN take a direct path even when the
+router does not support NAT hairpinning. Each participant in the expanded list
+has a status dot: green = direct path, purple = relay, gray =
+offline/waiting. The card badge summarizes the room: `DIRETO` only when every
+active participant is direct; otherwise, after 8 s, `RELAY`. The CLI keeps the
+1:1 AUTO mode (direct → relay).
 
-## Quick start CLI (avançado)
+## CLI quick start (advanced)
 
-A GUI esconde os detalhes. O CLI `nuvia` continua disponível para LAN manual,
-testes e automação.
+The GUI hides the details. The `nuvia` CLI remains available for manual LANs,
+tests, and automation.
 
 ```bash
 cargo build --release
 ```
 
-Em cada máquina, gere a identidade e copie a chave pública:
+On each machine, generate the identity and copy the public key:
 
 ```bash
 ./target/release/nuvia keygen --name pc-a
 ./target/release/nuvia pubkey
 ```
 
-### Internet (sem convite)
+### Internet (no invite)
 
-O token do relay e o IP virtual são derivados do nome/senha da rede, igual à
-GUI. Basta passar `--room` e `--server`; `--ip` é opcional.
+The relay token and virtual IP are derived from the room name/password, just
+like the GUI. Pass `--room` and `--server`; `--ip` is optional.
 
 ```bash
 # peer A
 sudo ./target/release/nuvia up \
-  --room casa --password 'troque-esta-senha' \
+  --room home --password 'change-this-password' \
   --server https://167.234.237.6.sslip.io
 
-# peer B (mesmo nome e senha)
+# peer B (same name and password)
 sudo ./target/release/nuvia up \
-  --room casa --password 'troque-esta-senha' \
+  --room home --password 'change-this-password' \
   --server https://167.234.237.6.sslip.io
 ```
 
-O menor `public_key` fica com `.1` e o maior com `.2`, dentro de
-`10.240.<octeto-da-sala>.0/24`. Use `--ip 10.240.x.y/24` para forçar outro
-endereço e `--room-token` para usar um token avulso. `--relay` força a VPS;
-`--direct` força só P2P. Sem `--relay`/`--direct`, o CLI usa AUTO.
+The lower `public_key` gets `.1` and the higher one gets `.2`, inside
+`10.240.<room-octet>.0/24`. Use `--ip 10.240.x.y/24` to force another address
+and `--room-token` to use a standalone token. `--relay` forces the VPS;
+`--direct` forces P2P only. Without `--relay`/`--direct`, the CLI uses AUTO.
 
-### LAN manual
+### Manual LAN
 
-Na máquina A (IP físico `192.168.1.10`):
+On machine A (physical IP `192.168.1.10`):
 
 ```bash
 sudo ./target/release/nuvia --identity "$HOME/.config/nuvia/identity.toml" up \
-  --room casa --password 'troque-esta-senha' \
+  --room home --password 'change-this-password' \
   --tap-name nuvia-vpn0 --ip 10.240.0.1/24 \
   --bind 0.0.0.0:42424 \
   --peer <PUB_B>@192.168.1.20:42424
 ```
 
-Na máquina B (IP físico `192.168.1.20`), troque o IP para `10.240.0.2/24` e o
-peer para `<PUB_A>@192.168.1.10:42424`.
+On machine B (physical IP `192.168.1.20`), change the IP to `10.240.0.2/24`
+and the peer to `<PUB_A>@192.168.1.10:42424`.
 
-> O `sudo` normalmente troca `HOME` para `/root`. Sem `--identity`, o nuvia
-> criaria uma identidade nova em `/root/.config/nuvia` e a chave pública não
-> bateria com a do outro lado.
+> `sudo` usually changes `HOME` to `/root`. Without `--identity`, nuvia would
+> create a new identity in `/root/.config/nuvia` and the public key would not
+> match the other side.
 
-Se o **UFW** estiver ativo (padrão `DROP` no LMDE), libere o túnel e o TAP:
+If **UFW** is active (default `DROP` on LMDE), allow the tunnel and the TAP:
 
 ```bash
 sudo ufw allow 42424/udp
 sudo ufw allow in on nuvia-vpn0
 ```
 
-Teste com `ping 10.240.0.2` na máquina A e `ping 10.240.0.1` na B. Os dois lados
-precisam usar a mesma sala e senha. O papel de iniciador do handshake é
-escolhido automaticamente pela ordem das chaves públicas; não há `--listen` nem
-`--dial`.
+Test with `ping 10.240.0.2` on machine A and `ping 10.240.0.1` on B. Both sides
+must use the same room and password. The handshake initiator role is chosen
+automatically from the public-key order; there is no `--listen` or `--dial`.
 
-Por padrão o cliente instala `224.0.0.0/4`, `224.0.2.60/32` (Minecraft) e
-`255.255.255.255` no TAP para a descoberta de jogos funcionar. Se isso
-atrapalhar Chromecast/impressoras na sua rede, use `--no-broadcast-routes`.
+By default, the client installs `224.0.0.0/4`, `224.0.2.60/32` (Minecraft), and
+`255.255.255.255` on the TAP so game discovery works. If this interferes with
+Chromecast/printers on your network, use `--no-broadcast-routes`.
 
-> `--password` na linha de comando aparece no histórico e em `ps`. Prefira a
-> GUI, que mantém a senha só na memória.
+> `--password` on the command line appears in shell history and in `ps`. Prefer
+> the GUI, which keeps the password in memory only.
 
 ## Windows (M1a)
 
-O binário Windows x86_64 é gerado com:
+The Windows x86_64 binary is built with:
 
 ```bash
 rustup target add x86_64-pc-windows-gnu
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
-Para facilitar, `dist/windows/` contém `nuvia.exe`, `nuvia-gui.exe`,
-`lanprobe.exe`, `install-tap.ps1`, o driver em `driver/amd64/` e o README.
+For convenience, `dist/windows/` contains `nuvia.exe`, `nuvia-gui.exe`,
+`lanprobe.exe`, `install-tap.ps1`, the driver in `driver/amd64/`, and the
+README.
 
-Pacotes gerados:
+Generated packages:
 
-- `dist/nuvia-setup-x86_64.exe` — instalador NSIS com o driver embutido,
-  atalhos e desinstalador;
-- `dist/nuvia-windows-x86_64.zip` — versão portátil com o mesmo driver.
+- `dist/nuvia-setup-x86_64.exe` — NSIS installer with the embedded driver,
+  shortcuts, and uninstaller;
+- `dist/nuvia-windows-x86_64.zip` — portable version with the same driver.
 
-No PC Windows:
+On the Windows PC:
 
-1. Rode `nuvia-setup-x86_64.exe` como administrador (recomendado) ou, no zip,
-   `install-tap.ps1 -DriverDir .\driver` uma vez.
-2. Abra `nuvia-gui.exe` e aceite o UAC.
-3. Menu **REDE** → **CRIAR REDE** ou **ENTRAR EM REDE**.
+1. Run `nuvia-setup-x86_64.exe` as administrator (recommended) or, with the
+   zip, run `install-tap.ps1 -DriverDir .\driver` once.
+2. Open `nuvia-gui.exe` and accept UAC.
+3. **REDE** menu → **CRIAR REDE** or **ENTRAR EM REDE**.
 
-O instalador e os binários ainda não têm assinatura de código; o SmartScreen
-pode avisar. A GUI Windows usa wgpu/DirectX 12 (WARP como fallback), então não
-depende de OpenGL 2.0. Se fechar ao abrir ou aparecer `os error 2`/`TAP indisponível`, veja
-`%APPDATA%\nuvia\nuvia.log` e rode `install-tap.ps1 -DriverDir .\driver` como
-administrador (o driver não está instalado nesse PC).
+The installer and binaries are not code-signed yet; SmartScreen may warn. The
+Windows GUI uses wgpu/DirectX 12 (WARP as fallback), so it does not depend on
+OpenGL 2.0. If it closes on startup or shows `os error 2`/`TAP unavailable`,
+check `%APPDATA%\nuvia\nuvia.log`: the app tries to repair/rename the TAP
+automatically and, if needed, runs the embedded `devcon`. The installer does
+not reinstall the driver when it is already present.
 
-## Pacotes Linux
+### What Windows configures automatically
+
+nuvia creates **one `nuvia0` adapter**, configures IP/MTU, installs the
+discovery routes, sets the **interface metric to 1**, marks the TAP as a
+**Private** network, and creates the `nuvia-nuvia0` firewall rule. Step by step
+in [`deploy/windows/README.md`](deploy/windows/README.md) (in Portuguese).
+
+Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
+
+## Linux packages
 
 ```bash
 ./scripts/build-linux-packages.sh
 ```
 
-Gera:
+Generates:
 
-- `dist/nuvia_1.0.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
-  `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
-  `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.0.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
-  para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
+- `dist/nuvia_1.0.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+  `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
+  launcher uses `pkexec` to ask for the password and create the TAP/routes;
+- `dist/nuvia-1.0.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
+  an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
-Os dois mantêm a identidade e a lista de redes em `~/.config/nuvia/`.
-
-
-O nuvia cria **um único adaptador `nuvia0`**, configura IP/MTU, instala as
-rotas de descoberta, coloca a **métrica da interface em 1**, marca o TAP como
-rede **Private** e cria a regra de firewall `nuvia-nuvia0`. Passo a passo em
-[`deploy/windows/README.md`](deploy/windows/README.md).
-
-Validado em um Windows 11 real com Minecraft Java 1.8.5. Na primeira execução, o
-driver `tap-windows6` foi instalado pelo `install-tap.ps1`.
+Both keep the identity and room list in `~/.config/nuvia/`.
 
 ## Internet (M5a/M5b)
 
-O modo internet usa um servidor de rendezvous para os peers se encontrarem. O
-servidor vê apenas IDs opacos, chaves públicas, endpoints e o token da sala —
-**nunca** a senha ou as chaves de tráfego. Quando o relay é usado, ele
-encaminha os pacotes L2 já cifrados, sem conseguir decifrá-los.
+Internet mode uses a rendezvous server so peers can find each other. The server
+sees only opaque IDs, public keys, endpoints, and the room token — **never** the
+password or traffic keys. When the relay is used, it forwards the
+already-encrypted L2 packets without being able to decrypt them.
 
-No servidor:
+On the server:
 
 ```bash
 nuvia-server serve --config /etc/nuvia/server.toml
 ```
 
-O `nuvia invite` ainda existe para gerar um convite com token aleatório
-(compatibilidade), mas a GUI não usa convite: o token é derivado da senha.
-Cada peer sobe com o mesmo nome/senha e recebe um IP virtual diferente. O modo
-padrão é **AUTO**: tenta o caminho direto por 8 s e cai no relay sozinho.
+`nuvia invite` still exists to generate an invite with a random token
+(compatibility), but the GUI does not use invites: the token is derived from
+the password. Each peer starts with the same room name/password and receives a
+different virtual IP. The default mode is **AUTO**: try the direct path for 8 s,
+then fall back to the relay automatically.
 
-> Se uma sala foi criada antes com um convite aleatório, o servidor mantém o
-> token antigo até reiniciar. A GUI mostra erro `403 invalid room token`;
-> reinicie o `nuvia-server` ou use outro nome de sala. O servidor guarda as
-> salas só em memória.
+> If a room was created earlier with a random invite, the server keeps the old
+> token until it restarts. The GUI shows `403 invalid room token`; restart
+> `nuvia-server` or use another room name. The server keeps rooms in memory
+> only.
 
-Teste local dos dois caminhos (sem VPS):
+Local test of both paths (without a VPS):
 
 ```bash
-./scripts/test-m5.sh                    # direto
+./scripts/test-m5.sh                    # direct
 NUVIA_TEST_RELAY=1 ./scripts/test-m5.sh # relay
 ```
 
-Os scripts sobem o servidor, uma bridge, dois namespaces e fazem ping pelo
-túnel.
+The scripts start the server, a bridge, two namespaces, and ping through the
+tunnel.
 
-## Teste local (sem sudo)
+## Local test (no sudo)
 
 ```bash
 ./scripts/test-m0.sh
 ```
 
-O script:
+The script:
 
-1. cria dois network namespaces e um veth entre eles;
-2. gera duas identidades;
-3. sobe um processo `nuvia` em cada namespace;
-4. espera o handshake;
-5. faz `ping` de A para B e de B para A;
-6. envia um broadcast para `10.240.0.255` e confere a entrega;
-7. valida as rotas de descoberta e o grupo multicast `224.0.2.60:4445`;
-8. envia um broadcast global `255.255.255.255` e confere a entrega.
+1. creates two network namespaces and a veth between them;
+2. generates two identities;
+3. starts a `nuvia` process in each namespace;
+4. waits for the handshake;
+5. pings from A to B and from B to A;
+6. sends a broadcast to `10.240.0.255` and checks delivery;
+7. validates the discovery routes and the `224.0.2.60:4445` multicast group;
+8. sends a global `255.255.255.255` broadcast and checks delivery.
 
-Saída esperada no final:
+Expected output at the end:
 
 ```
 M0/M3a OK: L2 tunnel, ARP/ICMP, broadcast, multicast and discovery routes work.
 ```
 
-Se user namespaces estiverem bloqueados, rode com `sudo ./scripts/test-m0.sh`.
+If user namespaces are blocked, run `sudo ./scripts/test-m0.sh`.
 
-## Estrutura
+## Layout
 
 ```
 nuvia/
 ├── crates/
-│   ├── nuvia-core/       # identidade, sala, Noise, framing, sessão, túnel
-│   ├── nuvia-cli/        # binário `nuvia` (keygen, pubkey, up, doctor)
-│   ├── nuvia-gui/        # GUI egui/eframe multi-rede
-│   ├── nuvia-protocol/   # HELLO/ACK, envelope de relay, convite legado
+│   ├── nuvia-core/       # identity, room, Noise, framing, session, tunnel
+│   ├── nuvia-cli/        # `nuvia` binary (keygen, pubkey, up, doctor)
+│   ├── nuvia-gui/        # multi-room egui/eframe GUI
+│   ├── nuvia-protocol/   # HELLO/ACK, relay envelope, legacy invite
 │   ├── nuvia-server/     # rendezvous + relay
-│   └── nuvia-probe/      # `lanprobe` para broadcast/multicast
-├── scripts/test-m0.sh    # integração com network namespaces
-├── scripts/test-m5.sh    # rendezvous/direto/relay com namespaces
+│   └── nuvia-probe/      # `lanprobe` for broadcast/multicast
+├── scripts/test-m0.sh    # network-namespace integration
+├── scripts/test-m5.sh    # rendezvous/direct/relay with namespaces
 ├── scripts/build-linux-packages.sh   # .deb + AppImage
-├── scripts/build-windows-package.sh  # zip + instalador NSIS
-├── scripts/make-icon.py              # ícone compartilhado
-├── docs/architecture.md  # desenho completo até o relay
+├── scripts/build-windows-package.sh  # zip + NSIS installer
+├── scripts/make-icon.py              # shared icon
+├── docs/architecture.md  # full design up to the relay
 ├── deploy/oracle/        # VPS, systemd, Caddy, UFW
-├── deploy/windows/       # instruções do cliente Windows
-├── dist/                 # pacotes gerados (não versionados)
+├── deploy/windows/       # Windows client instructions
+├── dist/                 # generated packages (not versioned)
 ├── Cargo.toml
 └── LICENSE
 ```
 
 ## Roadmap
 
-| Marco | Entrega |
+| Milestone | Delivery |
 |---|---|
-| **M0** ✅ | Túnel L2 Linux, Noise + AEAD, ping, broadcast, teste netns |
-| **M1a** ✅ | Windows CLI validado: TAP, rotas, firewall, métrica e ping |
-| **M1b** 🟡 | GUI compacta multi-rede, lista persistida e tray; falta validar o build |
-| **M2** 🟡 | Mesh GUI 3–8 via relay; faltam beacon/claim de IP e P2P mesh |
-| **M3a** ✅ | Rotas `224.0.0.0/4`, `224.0.2.60/32` e `255.255.255.255` pelo TAP |
-| **M3** ✅ | Minecraft Java 1.8.5 LAN Linux ↔ Windows, anúncio multicast no TAP |
-| **M4** 🟡 | Instaladores NSIS/.deb/AppImage prontos; falta serviço/autostart e assinatura |
-| **M5a** ✅ | Rendezvous, descoberta de endpoint e handshake direto |
-| **M5b** ✅ | Relay UDP cifrado para NAT simétrico (teste local + VPS) |
-| **M5** ✅ | Minecraft entre redes diferentes via relay (Windows no hotspot) |
-| **M6** | Fallback TCP/TLS, múltiplos relays, peer relay, `nuvia send`, IPv6 |
+| **M0** ✅ | Linux L2 tunnel, Noise + AEAD, ping, broadcast, netns test |
+| **M1a** ✅ | Windows CLI validated: TAP, routes, firewall, metric, and ping |
+| **M1b** ✅ | Compact multi-room GUI, persisted list, and tray |
+| **M2** ✅ | 2–8 mesh GUI, per-peer status, shared TAP/IP, and direct path |
+| **M3a** ✅ | `224.0.0.0/4`, `224.0.2.60/32`, and `255.255.255.255` routes via TAP |
+| **M3** ✅ | Minecraft Java 1.8.5 LAN Linux ↔ Windows, multicast announcement on TAP |
+| **M4** ✅ | NSIS/.deb/AppImage installers, icons, and tray; signing/autostart in M6 |
+| **M5a** ✅ | Rendezvous, endpoint discovery, and direct handshake |
+| **M5b** ✅ | Encrypted UDP relay for symmetric NAT (local test + VPS) |
+| **M5** ✅ | Minecraft across different networks via relay (Windows on hotspot) |
+| **M6** | TCP/TLS fallback, multiple relays, peer relay, `nuvia send`, IPv6 |
 
-Detalhes de arquitetura, protocolo e relay em
-[`docs/architecture.md`](docs/architecture.md).
+Architecture, protocol, and relay details in
+[`docs/architecture.md`](docs/architecture.md) (in Portuguese).
 
-## Segurança
+## Security
 
-- A identidade privada fica em `~/.config/nuvia/identity.toml` com modo `0600`.
-- A senha da sala nunca é transmitida: vira PSK via Argon2id (19 MiB, 2
-  iterações). O relay só vê ciphertext.
-- Handshake Noise XX autentica as chaves estáticas. A chave pública do peer é
-  verificada contra a configurada; uma chave diferente aborta a conexão.
-- Cada direção tem chave e contador próprios; replay e pacotes antigos são
-  descartados.
-- **Atenção:** o token do relay é derivado da PSK (`BLAKE3(PSK)[..16]`) para
-  permitir entrar sem convite. Quem controla o servidor conhece esse token e
-  pode tentar adivinhar a senha offline, com Argon2id por tentativa. Use uma
-  senha longa; o tráfego continua protegido pela PSK mesmo assim.
-- No mesh, todos os membros compartilham a chave de grupo derivada da senha.
-  Qualquer membro da sala pode injetar quadros L2 (como em uma LAN física); o
-  servidor continua sem conseguir descriptografar.
-- A GUI mescla no TAP local os quadros de todas as salas; um mundo anunciado
-  em uma sala pode aparecer na lista de outra. Isso é intencional para manter
-  várias salas ativas com um só adaptador.
-- A chave SSH da VPS Oracle **não** fica no repositório: está em
-  `~/.ssh/nuvia/ssh-key-2026-11-16.key` (modo 600). O `.gitignore` bloqueia
-  `*.key`, `*.pem` e `.env*`.
-- A lista de redes fica em `rooms.toml` com modo `0600` e contém a senha de
-  cada sala em texto, necessária para reconectar. Proteja o arquivo.
+- The private identity lives in `~/.config/nuvia/identity.toml` with mode
+  `0600`.
+- The room password is never transmitted: it becomes a PSK via Argon2id
+  (19 MiB, 2 iterations). The relay only sees ciphertext.
+- The Noise XX handshake authenticates static keys. The peer public key is
+  verified against the configured one; a different key aborts the connection.
+- Each direction has its own key and counter; replays and old packets are
+  discarded.
+- **Warning:** the relay token is derived from the PSK (`BLAKE3(PSK)[..16]`) to
+  allow joining without an invite. Whoever controls the server knows that token
+  and can try to guess the password offline, with Argon2id per attempt. Use a
+  long password; traffic remains protected by the PSK anyway.
+- In the mesh, all members share the group key derived from the password. Any
+  room member can inject L2 frames (as on a physical LAN); the server still
+  cannot decrypt them.
+- The GUI merges frames from all rooms into the local TAP; a world announced in
+  one room may appear in another room's list. This is intentional to keep
+  several rooms active with a single adapter.
+- The Oracle VPS SSH key is **not** in the repository: it lives in
+  `~/.ssh/nuvia/ssh-key-2026-11-16.key` (mode 600). `.gitignore` blocks
+  `*.key`, `*.pem`, and `.env*`.
+- The room list lives in `rooms.toml` with mode `0600` and contains each room
+  password in plain text, required for reconnecting. Protect the file.
 
-## Limitações atuais
+## Current limitations
 
-- A GUI usa **um TAP/IP compartilhado e mesh** para todas as salas (2–8 peers
-  por sala), tentando direto e relay em paralelo. O CLI continua 1:1 com Noise
-  e AUTO direto/relay; os dois modos não interoperam na mesma sessão.
-- Todas as salas da GUI compartilham o mesmo domínio L2 local; a separação é
-  feita pelas chaves de grupo no relay, não pelo IP.
-- GUI pronta em Linux/Windows, com lista persistida e tray; a bandeja depende de
-  StatusNotifier no Linux. Sem ela, fechar encerra os túneis.
-- Sem serviço/autostart nos clientes (M4).
-- `AUTO` cai no relay após 8 s; o CLI pode forçar `--relay`/`--direct`.
-- Relay adiciona ~50 ms no teste São Paulo ↔ celular e ainda não tem cap de
-  banda por sala.
-- MTU fixo em 1360; não há fragmentação no túnel.
-- O CLI e a GUI só se encontram na mesma sala quando ambos usam o nome/senha
-  (token derivado). Convites antigos não interoperam com a GUI.
-- Várias redes simultâneas compartilham o mesmo servidor fixo; só a rede ativa
-  instala as rotas `224.0.0.0/4`, `224.0.2.60/32` e `255.255.255.255/32`.
+- The GUI uses **one shared TAP/IP and mesh** for all rooms (2–8 peers per
+  room), trying direct and relay in parallel. The CLI remains 1:1 with Noise and
+  AUTO direct/relay; the two modes do not interoperate in the same session.
+- All GUI rooms share the same local L2 domain; separation is provided by the
+  group keys at the relay, not by IP.
+- GUI ready on Linux/Windows, with a persisted list and tray; the tray depends
+  on StatusNotifier on Linux. Without it, closing exits the tunnels.
+- No service/autostart on clients yet (M6).
+- `AUTO` falls back to the relay after 8 s; the CLI can force
+  `--relay`/`--direct`.
+- The relay adds ~50 ms in the São Paulo ↔ mobile test and still has no
+  per-room bandwidth cap.
+- MTU is fixed at 1360; there is no fragmentation inside the tunnel.
+- The CLI and GUI only meet in the same room when both use the name/password
+  (derived token). Legacy invites do not interoperate with the GUI.
+- Multiple simultaneous rooms share the same fixed server and the same TAP;
+  the `224.0.0.0/4`, `224.0.2.60/32`, and `255.255.255.255/32` routes are
+  installed once and cover every connected room.
