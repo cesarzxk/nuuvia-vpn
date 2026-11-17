@@ -1,6 +1,6 @@
 # Nuuvia
 
-**English** | [Português](README.pt-BR.md) · [Website](https://cesarzxk.github.io/nuuvia-vpn/)
+**English** | [Português](README.pt-BR.md) · [Website](https://nuuvia.devcesar.com/)
 
 Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
