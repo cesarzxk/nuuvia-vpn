@@ -1,6 +1,6 @@
 ; nuvia VPN installer (NSIS 3)
 ; Build from the repository root:
-;   makensis -DVERSION=1.0.0 deploy/windows/nuvia.nsi
+;   makensis -DVERSION=1.1.0 deploy/windows/nuvia.nsi
 
 Unicode true
 ManifestDPIAware true
@@ -12,7 +12,7 @@ CRCCheck on
 !include "x64.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.0.0"
+  !define VERSION "1.1.0"
 !endif
 
 !ifndef ROOT
@@ -45,7 +45,7 @@ BrandingText "nuvia"
 !define MUI_WELCOMEPAGE_TEXT "LAN virtual criptografada para jogos, Linux e Windows.$\r$\n$\r$\nO instalador copia o nuvia e o driver TAP assinado. É preciso ser administrador."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta de instalação do nuvia."
 
-VIProductVersion "1.0.0.0"
+VIProductVersion "1.1.0.0"
 VIAddVersionKey "ProductName" "nuvia VPN"
 VIAddVersionKey "FileDescription" "Instalador do nuvia VPN"
 VIAddVersionKey "FileVersion" "${VERSION}"
