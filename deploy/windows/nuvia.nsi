@@ -1,6 +1,6 @@
 ; nuvia VPN installer (NSIS 3)
 ; Build from the repository root:
-;   makensis -DVERSION=1.1.0 deploy/windows/nuvia.nsi
+;   makensis -DVERSION=1.2.0 deploy/windows/nuvia.nsi
 
 Unicode true
 ManifestDPIAware true
@@ -12,7 +12,7 @@ CRCCheck on
 !include "x64.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.1.0"
+  !define VERSION "1.2.0"
 !endif
 
 !ifndef ROOT
@@ -26,11 +26,11 @@ CRCCheck on
 !define APP_README "${ROOT}/dist/windows/README.md"
 !define APP_ICON "${ROOT}/deploy/windows/nuvia-bmp.ico"
 
-Name "nuvia VPN"
+Name "Nuuvia VPN"
 OutFile "${ROOT}/dist/nuvia-setup-x86_64.exe"
 InstallDir "$PROGRAMFILES64\nuvia"
 InstallDirRegKey HKLM "Software\nuvia" "InstallDir"
-BrandingText "nuvia"
+BrandingText "Nuuvia"
 
 !ifndef ICON
   !define ICON "${__FILEDIR__}/nuvia-nsis.ico"
@@ -40,14 +40,14 @@ BrandingText "nuvia"
 !define MUI_UNICON "${ICON}"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\nuvia-gui.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Abrir o nuvia VPN agora"
-!define MUI_WELCOMEPAGE_TITLE "nuvia VPN"
-!define MUI_WELCOMEPAGE_TEXT "LAN virtual criptografada para jogos, Linux e Windows.$\r$\n$\r$\nO instalador copia o nuvia e o driver TAP assinado. É preciso ser administrador."
-!define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta de instalação do nuvia."
+!define MUI_FINISHPAGE_RUN_TEXT "Abrir o Nuuvia VPN agora"
+!define MUI_WELCOMEPAGE_TITLE "Nuuvia VPN"
+!define MUI_WELCOMEPAGE_TEXT "LAN virtual criptografada para jogos, Linux e Windows.$\r$\n$\r$\nO instalador copia o Nuuvia e o driver TAP assinado. É preciso ser administrador."
+!define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta de instalação do Nuuvia."
 
-VIProductVersion "1.1.0.0"
-VIAddVersionKey "ProductName" "nuvia VPN"
-VIAddVersionKey "FileDescription" "Instalador do nuvia VPN"
+VIProductVersion "1.2.0.0"
+VIAddVersionKey "ProductName" "Nuuvia VPN"
+VIAddVersionKey "FileDescription" "Instalador do Nuuvia VPN"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "MIT"
@@ -64,7 +64,7 @@ VIAddVersionKey "LegalCopyright" "MIT"
 
 Function .onInit
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "O nuvia requer Windows 64-bit."
+    MessageBox MB_ICONSTOP "O Nuuvia requer Windows 64-bit."
     Abort
   ${EndIf}
   SetShellVarContext all
@@ -74,12 +74,12 @@ Function un.onInit
   SetShellVarContext all
 FunctionEnd
 
-Section "nuvia VPN" SEC_MAIN
+Section "Nuuvia VPN" SEC_MAIN
   SectionIn RO
 
   ; Encerra instâncias antigas (inclusive o helper de tray) para liberar os
   ; arquivos e o adaptador TAP.
-  DetailPrint "Fechando instâncias do nuvia..."
+  DetailPrint "Fechando instâncias do Nuuvia..."
   nsExec::Exec 'taskkill /F /T /IM nuvia-gui.exe'
   Pop $0
   nsExec::Exec 'taskkill /F /T /IM nuvia.exe'
@@ -101,24 +101,27 @@ Section "nuvia VPN" SEC_MAIN
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   WriteRegStr HKLM "Software\nuvia" "InstallDir" "$INSTDIR"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "DisplayName" "nuvia VPN"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "DisplayName" "Nuuvia VPN"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "Publisher" "nuvia"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "Publisher" "Nuuvia"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "DisplayIcon" "$INSTDIR\nuvia-gui.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\nuvia" "NoRepair" 1
 
-  CreateDirectory "$SMPROGRAMS\nuvia"
-  CreateShortcut "$SMPROGRAMS\nuvia\nuvia VPN.lnk" "$INSTDIR\nuvia-gui.exe" "" "$INSTDIR\nuvia-gui.exe" 0
-  CreateShortcut "$DESKTOP\nuvia VPN.lnk" "$INSTDIR\nuvia-gui.exe" "" "$INSTDIR\nuvia-gui.exe" 0
+  CreateDirectory "$SMPROGRAMS\Nuuvia"
+  CreateShortcut "$SMPROGRAMS\Nuuvia\Nuuvia VPN.lnk" "$INSTDIR\nuvia-gui.exe" "" "$INSTDIR\nuvia-gui.exe" 0
+  CreateShortcut "$DESKTOP\Nuuvia VPN.lnk" "$INSTDIR\nuvia-gui.exe" "" "$INSTDIR\nuvia-gui.exe" 0
+  Delete "$DESKTOP\nuvia VPN.lnk"
+  Delete "$SMPROGRAMS\nuvia\nuvia VPN.lnk"
+  RMDir "$SMPROGRAMS\nuvia"
 
   DetailPrint "Instalando o driver TAP-Windows6..."
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\install-tap.ps1" -DriverDir "$INSTDIR\driver"'
   Pop $0
   ${If} $0 != 0
-    DetailPrint "Aviso: install-tap.ps1 retornou $0; o nuvia tentará reparar o TAP ao conectar."
+    DetailPrint "Aviso: install-tap.ps1 retornou $0; o Nuuvia tentará reparar o TAP ao conectar."
   ${EndIf}
 SectionEnd
 
@@ -129,8 +132,11 @@ Section "Uninstall"
   Pop $0
   Sleep 500
 
+  Delete "$DESKTOP\Nuuvia VPN.lnk"
   Delete "$DESKTOP\nuvia VPN.lnk"
+  Delete "$SMPROGRAMS\Nuuvia\Nuuvia VPN.lnk"
   Delete "$SMPROGRAMS\nuvia\nuvia VPN.lnk"
+  RMDir "$SMPROGRAMS\Nuuvia"
   RMDir "$SMPROGRAMS\nuvia"
 
   RMDir /r "$INSTDIR"
