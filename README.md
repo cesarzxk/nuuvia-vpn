@@ -6,7 +6,7 @@ Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
 
-> Status: **1.0.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> Status: **1.1.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
@@ -19,9 +19,10 @@ including **broadcast** and **multicast** discovery.
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/create-network.png" width="30%" alt="Create or join a network">
-  <img src="docs/screenshots/relay.png" width="30%" alt="Relay path and offline participant">
-  <img src="docs/screenshots/about.png" width="30%" alt="About nuvia 1.0.0">
+  <img src="docs/screenshots/create-network.png" width="24%" alt="Create or join a network">
+  <img src="docs/screenshots/relay.png" width="24%" alt="Relay path, latency and offline participant">
+  <img src="docs/screenshots/settings.png" width="24%" alt="Settings and language selector">
+  <img src="docs/screenshots/about.png" width="24%" alt="About nuvia 1.1.0">
 </p>
 
 ## What already works
@@ -61,7 +62,10 @@ including **broadcast** and **multicast** discovery.
   - **2–8 participants per room**, trying direct and relay paths in parallel;
     the server is fixed at compile time;
   - **per-participant status**: green = direct, purple = relay, gray =
-    offline/waiting.
+    offline/waiting;
+  - hover a participant to see a **quality dot and the measured ping**;
+  - right-click a participant to **copy their IP**;
+  - **English, Spanish, and Portuguese UI**, selectable in Settings.
 - Keepalive, dead-session detection, and automatic reconnection.
 - Integration test with two network namespaces, no sudo when user namespaces
   are available.
@@ -121,8 +125,9 @@ list below. Because the TAP is shared, Minecraft sees the LANs of all active
 rooms; rooms are not isolated locally. Right-click the card: **DESATIVAR**
 disconnects that room; **SAIR** removes it from the list.
 
-The **AJUDA** menu contains **Ajustes** (identity, fixed server, and
-privileges), **Sobre**, and **Sair**.
+The **AJUDA** menu contains **Ajustes** (identity, fixed server, privileges, and
+language), **Sobre**, and **Sair**. The interface can be switched between
+English, Español, and Português in **Ajustes → Idioma**.
 
 Rooms are saved in `rooms.toml` (in the same directory as the identity) and
 restored on startup without connecting automatically. When you close the
@@ -286,10 +291,10 @@ Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
 
 Generates:
 
-- `dist/nuvia_1.0.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.1.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
   launcher uses `pkexec` to ask for the password and create the TAP/routes;
-- `dist/nuvia-1.0.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
+- `dist/nuvia-1.1.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
   an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
