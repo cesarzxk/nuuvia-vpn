@@ -1,0 +1,21 @@
+[package]
+name = "nuvia-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nuvia"
+path = "src/main.rs"
+
+[dependencies]
+nuvia-core = { path = "../nuvia-core" }
+nuvia-protocol = { path = "../nuvia-protocol" }
+anyhow.workspace = true
+clap.workspace = true
+hex.workspace = true
+libc.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
