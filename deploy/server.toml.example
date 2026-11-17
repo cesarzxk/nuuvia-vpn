@@ -1,0 +1,13 @@
+# nuvia-server configuration.
+# Caddy terminates TLS on 443 and proxies HTTP to http_bind.
+
+http_bind = "127.0.0.1:4646"
+udp_bind = "0.0.0.0:8443"
+public_url = "https://relay.example.com"
+
+# A peer is considered offline after this many seconds without register/hello.
+peer_ttl_secs = 60
+# Empty rooms are kept for this long so a late invitee can still join.
+room_ttl_secs = 86400
+max_peers_per_room = 8
+max_rooms = 1024
