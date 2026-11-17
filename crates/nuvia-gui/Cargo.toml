@@ -1,0 +1,32 @@
+[package]
+name = "nuvia-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nuvia-gui"
+path = "src/main.rs"
+
+[dependencies]
+nuvia-core = { path = "../nuvia-core" }
+nuvia-protocol = { path = "../nuvia-protocol" }
+anyhow.workspace = true
+eframe = "0.30"
+hex.workspace = true
+libc.workspace = true
+serde.workspace = true
+toml.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3", features = ["blocking"] }
+
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.30", features = ["wgpu"] }
+tray-icon = { version = "0.24", default-features = false, features = ["common-controls-v6"] }
+windows-sys = { version = "0.59", features = ["Win32_UI_Shell"] }
+
