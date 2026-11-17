@@ -2,6 +2,8 @@
 
 [English](README.md) | **Português** · [Site](https://nuuvia.devcesar.com/) · [![Buy me a coffee](https://img.shields.io/badge/Buy_me_a_coffee-0D0C22?style=flat-square&logo=buymeacoffee&logoColor=FFDD00&labelColor=0D0C22&color=0D0C22)](https://buymeacoffee.com/cesarzxk)
 
+[Política de assinatura de código](CODE_SIGNING.md) · [Privacidade](PRIVACY.md) · [Segurança](SECURITY.md)
+
 LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
@@ -430,6 +432,12 @@ Detalhes de arquitetura, protocolo e relay em
   `*.key`, `*.pem` e `.env*`.
 - A lista de redes fica em `rooms.toml` com modo `0600` e contém a senha de
   cada sala em texto, necessária para reconectar. Proteja o arquivo.
+
+## Política de assinatura de código
+
+Os executáveis Windows e o instalador NSIS são assinados via
+[SignPath Foundation](https://signpath.org). O processo, os papéis da equipe e a
+verificação estão em [CODE_SIGNING.md](CODE_SIGNING.md).
 
 ## Limitações atuais
 
