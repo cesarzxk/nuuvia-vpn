@@ -63,9 +63,48 @@ pub enum TunnelStatus {
         tag: [u8; PEER_TAG_LEN],
         direct: bool,
     },
+    /// Round-trip time measured with an encrypted control frame.
+    Ping {
+        tag: [u8; PEER_TAG_LEN],
+        ms: u32,
+    },
 }
 
 pub const MESH_PREFIX: u8 = 16;
+
+const PING_ETHERTYPE: [u8; 2] = [0x88, 0xB5];
+const PING_MAGIC: [u8; 4] = *b"NUVP";
+const PING_VERSION: u8 = 1;
+const PING_REQUEST: u8 = 1;
+const PING_REPLY: u8 = 2;
+const PING_FRAME_LEN: usize = 28;
+
+fn ping_frame(kind: u8, nonce: u64) -> Vec<u8> {
+    let mut frame = vec![0u8; PING_FRAME_LEN];
+    frame[..6].fill(0xff);
+    frame[6..12].copy_from_slice(&[0x02, 0, 0, 0, 0, 1]);
+    frame[12..14].copy_from_slice(&PING_ETHERTYPE);
+    frame[14..18].copy_from_slice(&PING_MAGIC);
+    frame[18] = PING_VERSION;
+    frame[19] = kind;
+    frame[20..28].copy_from_slice(&nonce.to_be_bytes());
+    frame
+}
+
+fn parse_ping(frame: &[u8]) -> Option<(u8, u64)> {
+    if frame.len() != PING_FRAME_LEN
+        || frame[12..14] != PING_ETHERTYPE
+        || frame[14..18] != PING_MAGIC
+        || frame[18] != PING_VERSION
+    {
+        return None;
+    }
+    let kind = frame[19];
+    if kind != PING_REQUEST && kind != PING_REPLY {
+        return None;
+    }
+    Some((kind, u64::from_be_bytes(frame[20..28].try_into().ok()?)))
+}
 
 pub fn shared_tap_name() -> &'static str {
     if cfg!(windows) {
@@ -491,6 +530,10 @@ pub async fn run_mesh(
     // Last known path for each room member. The timestamp lets the GUI mark a
     // peer as offline when its keepalives stop.
     let mut peer_paths: HashMap<[u8; PEER_TAG_LEN], (bool, Instant)> = HashMap::new();
+    // Direct source address learned from a peer, used to answer pings on the
+    // low-latency path.
+    let mut peer_sources: HashMap<[u8; PEER_TAG_LEN], SocketAddr> = HashMap::new();
+    let mut pending_pings: HashMap<u64, Instant> = HashMap::new();
 
     info!(
         server = %config.server_addr,
@@ -501,6 +544,8 @@ pub async fn run_mesh(
     let mut udp_buffer = vec![0u8; MAX_PACKET];
     let mut keepalive = tokio::time::interval(Duration::from_secs(10));
     keepalive.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    let mut ping = tokio::time::interval(Duration::from_secs(2));
+    ping.set_missed_tick_behavior(MissedTickBehavior::Delay);
     let mut refresh = tokio::time::interval(Duration::from_secs(5));
     refresh.set_missed_tick_behavior(MissedTickBehavior::Delay);
     let mut fallback = Box::pin(tokio::time::sleep(Duration::from_secs(8)));
@@ -539,6 +584,9 @@ pub async fn run_mesh(
                 match group.open(&udp_buffer[..length]) {
                     Ok((src, frame)) => {
                         let direct = source != config.server_addr;
+                        if direct {
+                            peer_sources.insert(src, source);
+                        }
                         let now = Instant::now();
                         let announce = match peer_paths.get_mut(&src) {
                             Some((previous, last_seen)) => {
@@ -568,7 +616,35 @@ pub async fn run_mesh(
                                 let _ = status.send(TunnelStatus::Established).await;
                             }
                         }
-                        if !frame.is_empty() {
+
+                        if let Some((kind, nonce)) = parse_ping(&frame) {
+                            if kind == PING_REQUEST {
+                                let reply = group.seal(&ping_frame(PING_REPLY, nonce))?;
+                                if direct {
+                                    let _ = socket.send_to(&reply, source).await;
+                                }
+                                if let Some(endpoint) = peer_sources.get(&src) {
+                                    if *endpoint != source {
+                                        let _ = socket.send_to(&reply, *endpoint).await;
+                                    }
+                                }
+                                let envelope = encode_relay(
+                                    &config.room_id,
+                                    group.self_tag(),
+                                    &BROADCAST_TAG,
+                                    &config.token,
+                                    &reply,
+                                );
+                                let _ = socket.send_to(&envelope, config.server_addr).await;
+                            } else if let Some(sent) = pending_pings.remove(&nonce) {
+                                let ms = sent.elapsed().as_millis().min(u32::MAX as u128) as u32;
+                                if let Some(status) = &config.status {
+                                    let _ = status
+                                        .send(TunnelStatus::Ping { tag: src, ms })
+                                        .await;
+                                }
+                            }
+                        } else if !frame.is_empty() {
                             inbound.send(frame).await.map_err(|_| Error::config("shared TAP hub stopped"))?;
                         }
                     }
@@ -589,6 +665,25 @@ pub async fn run_mesh(
                 );
                 if let Err(error) = socket.send_to(&envelope, config.server_addr).await {
                     warn!(%error, "could not send mesh keepalive");
+                }
+            }
+            _ = ping.tick() => {
+                pending_pings.retain(|_, sent| sent.elapsed() < Duration::from_secs(10));
+                let nonce = rand::random::<u64>();
+                pending_pings.insert(nonce, Instant::now());
+                let inner = group.seal(&ping_frame(PING_REQUEST, nonce))?;
+                for peer in &direct_peers {
+                    let _ = socket.send_to(&inner, peer).await;
+                }
+                let envelope = encode_relay(
+                    &config.room_id,
+                    group.self_tag(),
+                    &BROADCAST_TAG,
+                    &config.token,
+                    &inner,
+                );
+                if let Err(error) = socket.send_to(&envelope, config.server_addr).await {
+                    debug!(%error, "could not send mesh ping");
                 }
             }
             _ = refresh.tick() => {
