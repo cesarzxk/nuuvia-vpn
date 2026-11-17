@@ -1,4 +1,4 @@
-# Arquitetura do nuvia
+# Arquitetura do Nuuvia
 
 Este documento registra as decisões de projeto para não perdermos o contexto
 entre os marcos.
@@ -228,7 +228,7 @@ New-NetRoute -DestinationPrefix 255.255.255.255/32 -InterfaceIndex <nuvia>
 ```
 
 - Verificar com `ip route get 224.0.2.60` / `Find-NetRoute`.
-- **Abrir o jogo depois do nuvia**; se já estava aberto, reiniciar.
+- **Abrir o jogo depois do Nuuvia**; se já estava aberto, reiniciar.
 - Exceções para mDNS (`224.0.0.251/32`) e SSDP (`239.255.255.250/32`) pela
   interface física mantêm Chromecast/impressoras funcionando.
 - Firewall precisa permitir entrada no TAP (Linux: `ufw allow in on
@@ -250,7 +250,7 @@ nas duas direções (Linux hospeda/Windows entra e vice-versa).
 ## 7. Windows (M1)
 
 - Driver `tap-windows6` assinado (9.27.0), instalado pelo setup uma vez.
-- O nuvia cria **um único adaptador `nuvia0`** para todas as salas; exigir
+- O Nuuvia cria **um único adaptador `nuvia0`** para todas as salas; exigir
   admin enquanto GUI e core rodam no mesmo processo.
 - Serviço `LocalSystem` + UI sem privilégios via named pipe/localhost continuam
   no roadmap (M6).
