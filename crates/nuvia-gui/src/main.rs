@@ -3,6 +3,7 @@
 mod app;
 mod backend;
 mod config;
+mod i18n;
 mod theme;
 mod tray;
 
@@ -10,8 +11,8 @@ use eframe::egui;
 
 fn main() -> eframe::Result<()> {
     #[cfg(target_os = "linux")]
-    if let Some(socket) = tray::helper_socket_arg() {
-        std::process::exit(tray::run_helper(&socket));
+    if let Some((socket, lang)) = tray::helper_args() {
+        std::process::exit(tray::run_helper(&socket, lang));
     }
 
     init_logging();
