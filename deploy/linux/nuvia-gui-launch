@@ -1,0 +1,25 @@
+#!/bin/sh
+# Starts the GUI with the privileges needed for TAP/rotas. The app creates the
+# user-session tray helper itself when running as root.
+
+if [ "$(id -u)" -eq 0 ]; then
+    exec /usr/bin/nuvia-gui "$@"
+fi
+
+if command -v pkexec >/dev/null 2>&1; then
+    if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+        exec pkexec env \
+            DISPLAY="${DISPLAY:-:0}" \
+            XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}" \
+            XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+            DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+            /usr/bin/nuvia-gui "$@"
+    fi
+    exec pkexec env \
+        DISPLAY="${DISPLAY:-:0}" \
+        XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}" \
+        XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+        /usr/bin/nuvia-gui "$@"
+fi
+
+exec /usr/bin/nuvia-gui "$@"
