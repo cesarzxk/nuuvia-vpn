@@ -2,6 +2,8 @@
 
 **English** | [Português](README.pt-BR.md) · [Website](https://nuuvia.devcesar.com/) · [![Buy me a coffee](https://img.shields.io/badge/Buy_me_a_coffee-0D0C22?style=flat-square&logo=buymeacoffee&logoColor=FFDD00&labelColor=0D0C22&color=0D0C22)](https://buymeacoffee.com/cesarzxk)
 
+[Code signing policy](CODE_SIGNING.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md)
+
 Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
@@ -431,6 +433,12 @@ Architecture, protocol, and relay details in
   `*.key`, `*.pem`, and `.env*`.
 - The room list lives in `rooms.toml` with mode `0600` and contains each room
   password in plain text, required for reconnecting. Protect the file.
+
+## Code signing policy
+
+Windows executables and the NSIS installer are signed through
+[SignPath Foundation](https://signpath.org). Release signing, team roles, and
+verification steps are documented in [CODE_SIGNING.md](CODE_SIGNING.md).
 
 ## Current limitations
 
