@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuuvia — Encrypted Virtual LAN for LAN Games</title>
+  <meta name="description" content="Play Minecraft and other LAN games together over the internet. Nuuvia is a free, open-source, encrypted Layer 2 VPN for Windows and Linux.">
+  <meta name="keywords" content="Nuuvia, virtual LAN, LAN games, Minecraft LAN, Layer 2 VPN, encrypted VPN, Windows, Linux, open source">
+  <meta name="author" content="Nuuvia contributors">
+  <meta name="application-name" content="Nuuvia">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-title" content="Nuuvia">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <meta name="theme-color" content="#070a10">
+  <link rel="canonical" href="https://cesarzxk.github.io/nuuvia-vpn/">
+  <link rel="alternate" hreflang="en" href="https://cesarzxk.github.io/nuuvia-vpn/">
+  <link rel="alternate" hreflang="x-default" href="https://cesarzxk.github.io/nuuvia-vpn/">
+  <link rel="sitemap" type="application/xml" href="./sitemap.xml">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Nuuvia">
+  <meta property="og:title" content="Nuuvia — Encrypted Virtual LAN for LAN Games">
+  <meta property="og:description" content="Play Minecraft and other LAN games together over the internet. Encrypted Layer 2 VPN for Windows and Linux. Free and open source.">
+  <meta property="og:url" content="https://cesarzxk.github.io/nuuvia-vpn/">
+  <meta property="og:image" content="https://cesarzxk.github.io/nuuvia-vpn/assets/og.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Nuuvia VPN — play LAN games from anywhere">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="pt_BR">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Nuuvia — Encrypted Virtual LAN for LAN Games">
+  <meta name="twitter:description" content="Play Minecraft and other LAN games together over the internet. Encrypted Layer 2 VPN for Windows and Linux.">
+  <meta name="twitter:image" content="https://cesarzxk.github.io/nuuvia-vpn/assets/og.png">
+  <meta name="twitter:image:alt" content="Nuuvia VPN — play LAN games from anywhere">
+
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./assets/favicon.png" sizes="64x64" type="image/png">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="preload" href="./assets/rajdhani-semibold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./assets/rajdhani-bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./screenshots/main.png" as="image" fetchpriority="high">
+  <link rel="stylesheet" href="./styles.css">
+  <script>document.documentElement.classList.add("js");</script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://cesarzxk.github.io/nuuvia-vpn/#website",
+        "url": "https://cesarzxk.github.io/nuuvia-vpn/",
+        "name": "Nuuvia",
+        "description": "Encrypted virtual LAN for games on Windows and Linux.",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://cesarzxk.github.io/nuuvia-vpn/#software",
+        "name": "Nuuvia",
+        "url": "https://cesarzxk.github.io/nuuvia-vpn/",
+        "description": "Free, open-source encrypted Layer 2 VPN that lets Minecraft Java and other LAN games discover each other across the internet.",
+        "applicationCategory": "NetworkApplication",
+        "applicationSubCategory": "VPN",
+        "operatingSystem": "Windows 10, Windows 11, Linux",
+        "softwareVersion": "1.2.0",
+        "downloadUrl": "https://github.com/cesarzxk/nuuvia-vpn/releases/latest",
+        "codeRepository": "https://github.com/cesarzxk/nuuvia-vpn",
+        "license": "https://opensource.org/license/mit",
+        "screenshot": "https://cesarzxk.github.io/nuuvia-vpn/screenshots/main.png",
+        "image": "https://cesarzxk.github.io/nuuvia-vpn/assets/og.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Nuuvia contributors",
+          "url": "https://github.com/cesarzxk/nuuvia-vpn"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://cesarzxk.github.io/nuuvia-vpn/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is Nuuvia free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Nuuvia is free and open source under the MIT license. There are no accounts, subscriptions, or ads."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Nuuvia work with Minecraft?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Nuuvia carries Layer 2 broadcast and multicast, so Minecraft Java Edition LAN worlds appear in the multiplayer list as if everyone were on the same cable. It has been tested with Minecraft Java 1.8.5."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need to configure a server?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Download the app, create a room with a name and password, and share that name and password with the other players. The public rendezvous and relay are built in."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is my traffic encrypted?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Traffic uses Noise XX authentication and ChaCha20-Poly1305 encryption. The relay forwards only encrypted packets and never sees the room password or traffic keys."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does it work on the same Wi-Fi network?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Nuuvia advertises local endpoints and tries a direct LAN path first. If the router uses AP isolation or blocks client-to-client traffic, the encrypted relay can still connect players."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header" id="top">
+    <div class="container nav-wrap">
+      <a class="brand" href="./" aria-label="Nuuvia home">
+        <img src="./assets/nuuvia-256.png" width="40" height="40" alt="">
+        <span class="brand-name">Nuuvia</span>
+        <span class="brand-tag">VPN</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="site-nav" id="site-nav" aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#security">Security</a>
+        <a href="#download">Download</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-github" href="https://github.com/cesarzxk/nuuvia-vpn" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow"><span class="dot"></span> v1.2.0 · Open source · Windows &amp; Linux</p>
+          <h1 id="hero-title">Play LAN games together. <span>From anywhere.</span></h1>
+          <p class="lead">Nuuvia is an encrypted Layer 2 VPN that puts every player on the same virtual Ethernet cable. Minecraft and other LAN games discover each other as if you were all in the same room.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.2.0/nuvia-setup-x86_64.exe" rel="noopener">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M3 5.5 10.5 3v8H3V5.5Zm0 13L10.5 21v-8H3v5.5ZM11.7 2.7 21 1v10H11.7V2.7Zm0 17.6L21 23V13H11.7v7.3Z" fill="currentColor"/></svg>
+              Download for Windows
+            </a>
+            <a class="btn btn-secondary" href="#download">Linux packages</a>
+          </div>
+          <ul class="hero-points">
+            <li>No account</li>
+            <li>2–8 players per room</li>
+            <li>Encrypted end to end</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual reveal">
+          <div class="app-frame">
+            <img src="./screenshots/main.png" width="380" height="572" alt="Nuuvia window showing three rooms, participants and per-peer latency" fetchpriority="high">
+          </div>
+          <div class="floating-card" aria-hidden="true">
+            <span class="pulse"></span>
+            <div><strong>Direct path</strong><small>28 ms · relay fallback ready</small></div>
+          </div>
+          <div class="glow glow-a"></div>
+          <div class="glow glow-b"></div>
+        </div>
+      </div>
+      <div class="container trust-strip reveal">
+        <span>Built for</span>
+        <strong>Minecraft Java LAN</strong>
+        <strong>Windows 10/11</strong>
+        <strong>Linux .deb &amp; AppImage</strong>
+        <strong>IPv4</strong>
+      </div>
+    </section>
+
+    <section class="section" id="features" aria-labelledby="features-title">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Features</p>
+          <h2 id="features-title">A real LAN, without the cables.</h2>
+          <p>Everything needed for spontaneous multiplayer, with the boring network setup removed.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M7 4v16M17 4v16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <h3>Layer 2 discovery</h3>
+            <p>Broadcast and multicast travel through the tunnel, so LAN world lists work like they do on a physical switch.</p>
+          </article>
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h5l2-5 3 10 2-5h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Direct first, relay fallback</h3>
+            <p>Nuuvia tries a direct peer path and the encrypted relay in parallel. You get the lowest latency the network allows.</p>
+          </article>
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 12h10M12 9v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <h3>One TAP, many rooms</h3>
+            <p>All rooms share a single virtual adapter and IP. Keep several groups connected at once without extra setup.</p>
+          </article>
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <h3>Live peer status</h3>
+            <p>See who is direct, who is on relay, and who is offline. Hover a player to check the measured ping and quality.</p>
+          </article>
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.4c0 4.6 3.2 7.8 7.5 9.6 4.3-1.8 7.5-5 7.5-9.6V6L12 3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m8.8 12 2.2 2.2 4.4-4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Encrypted by design</h3>
+            <p>Noise XX authenticates peers and ChaCha20-Poly1305 protects traffic. The relay only ever sees ciphertext.</p>
+          </article>
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="16.5" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div>
+            <h3>Simple by default</h3>
+            <p>Just a room name and password. No port forwarding, no invites, no config files, and a tray icon that keeps it running.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="how-it-works" aria-labelledby="how-title">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">How it works</p>
+          <h2 id="how-title">Three steps to play together.</h2>
+          <p>One person creates the room. Everyone else joins with the same name and password.</p>
+        </div>
+        <ol class="steps">
+          <li class="reveal">
+            <span class="step-number">1</span>
+            <h3>Create or join</h3>
+            <p>Open Nuuvia and use <strong>Network → Create network</strong> with a name and password. On the other PCs, choose <strong>Join network</strong>.</p>
+          </li>
+          <li class="reveal">
+            <span class="step-number">2</span>
+            <h3>Open the game</h3>
+            <p>Start Minecraft <strong>after</strong> Nuuvia is connected, then open your world to LAN. Discovery routes are installed automatically.</p>
+          </li>
+          <li class="reveal">
+            <span class="step-number">3</span>
+            <h3>Play</h3>
+            <p>The world shows up in the multiplayer list. With multiple rooms, every connected group appears in the same LAN list.</p>
+          </li>
+        </ol>
+
+        <div class="gallery">
+          <figure class="reveal">
+            <img src="./screenshots/create-network.png" width="380" height="572" loading="lazy" decoding="async" alt="Creating a network in Nuuvia with a room name and password">
+            <figcaption>Create a room with a name and password.</figcaption>
+          </figure>
+          <figure class="reveal">
+            <img src="./screenshots/relay.png" width="380" height="572" loading="lazy" decoding="async" alt="Nuuvia showing relay status and measured latency per participant">
+            <figcaption>Per-participant path, quality and latency.</figcaption>
+          </figure>
+          <figure class="reveal">
+            <img src="./screenshots/settings.png" width="380" height="572" loading="lazy" decoding="async" alt="Nuuvia settings with identity, privileges and language selector">
+            <figcaption>English, Spanish and Portuguese UI.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="security" aria-labelledby="security-title">
+      <div class="container security-grid">
+        <div class="section-head reveal">
+          <p class="eyebrow">Security</p>
+          <h2 id="security-title">Private by architecture, not by promise.</h2>
+          <p>Nuuvia assumes the network in the middle is hostile. The relay is useful, but it is never trusted with your traffic.</p>
+          <a class="text-link" href="https://github.com/cesarzxk/nuuvia-vpn/blob/main/docs/architecture.md" rel="noopener">Read the architecture notes <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="security-list">
+          <article class="security-item reveal">
+            <h3>Peer authentication</h3>
+            <p>Noise XX verifies static X25519 keys before any game traffic is accepted.</p>
+          </article>
+          <article class="security-item reveal">
+            <h3>End-to-end encryption</h3>
+            <p>ChaCha20-Poly1305 with explicit counters, AAD and replay protection. The relay cannot decrypt packets.</p>
+          </article>
+          <article class="security-item reveal">
+            <h3>Password never transmitted</h3>
+            <p>The room password becomes an Argon2id PSK locally. The server sees only a derived relay token.</p>
+          </article>
+          <article class="security-item reveal">
+            <h3>Open source</h3>
+            <p>MIT-licensed Rust code. Audit it, build it, or run it entirely on your own infrastructure.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="download" aria-labelledby="download-title">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Download</p>
+          <h2 id="download-title">Get Nuuvia 1.2.0.</h2>
+          <p>Free for Windows and Linux. No account, no subscription, no telemetry.</p>
+        </div>
+        <div class="download-grid">
+          <article class="download-card reveal">
+            <div class="os-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 10.5 3v8H3V5.5Zm0 13L10.5 21v-8H3v5.5ZM11.7 2.7 21 1v10H11.7V2.7Zm0 17.6L21 23V13H11.7v7.3Z" fill="currentColor"/></svg></div>
+            <h3>Windows</h3>
+            <p>Windows 10 or 11, 64-bit. The installer includes the signed TAP driver.</p>
+            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.2.0/nuvia-setup-x86_64.exe" rel="noopener">Download installer</a>
+            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.2.0/nuvia-windows-x86_64.zip" rel="noopener">Portable .zip</a>
+          </article>
+          <article class="download-card reveal">
+            <div class="os-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3c-4.4 0-6 1.7-6 4.5 0 2 .8 3.4 2.6 4.5-1.5.8-2.2 2-2.2 3.7 0 1.7.7 2.9 2.1 3.7-1.3.9-2 2.3-2 4.1 0 2.7 2.2 4 5.5 4 3.7 0 6-1.6 6-4.7 0-2.2-1.2-3.7-3.6-4.4l-3.1-.9c-1-.3-1.5-.8-1.5-1.5 0-.9.8-1.5 2.1-1.5 1.5 0 2.4.6 2.8 1.8l2.6-1.1c-.7-2-2.4-3.2-5.1-3.2-1 0-1.9.2-2.6.5C10.9 7 12 6 12 4.8c0-.7-.3-1.2-.8-1.6-.1 0-.4-.2.8-.2Z" fill="currentColor"/></svg></div>
+            <h3>Linux</h3>
+            <p>Debian/Ubuntu package or a portable AppImage. Uses pkexec for TAP and routes.</p>
+            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.2.0/nuvia_1.2.0_amd64.deb" rel="noopener">Download .deb</a>
+            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.2.0/nuvia-1.2.0-x86_64.AppImage" rel="noopener">Portable AppImage</a>
+          </article>
+          <article class="download-card reveal">
+            <div class="os-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.4-1.1.7-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z" fill="currentColor"/></svg></div>
+            <h3>Source code</h3>
+            <p>Rust workspace with the core, CLI, GUI, protocol and relay server.</p>
+            <a class="btn btn-secondary" href="https://github.com/cesarzxk/nuuvia-vpn" rel="noopener">View on GitHub</a>
+            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases" rel="noopener">All releases</a>
+          </article>
+        </div>
+        <p class="download-note">Installer filenames keep the original <code>nuvia</code> prefix for compatibility. Windows binaries are not code-signed yet, so SmartScreen may warn; you can build from source or verify the release checksums.</p>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container faq-wrap">
+        <div class="section-head reveal">
+          <p class="eyebrow">FAQ</p>
+          <h2 id="faq-title">Questions, answered.</h2>
+          <p>Still curious? Open an issue on GitHub.</p>
+        </div>
+        <div class="faq-list reveal">
+          <details>
+            <summary>Is Nuuvia free?</summary>
+            <p>Yes. Nuuvia is free and open source under the MIT license. There are no accounts, subscriptions, or ads.</p>
+          </details>
+          <details>
+            <summary>Does Nuuvia work with Minecraft?</summary>
+            <p>Yes. Nuuvia carries Layer 2 broadcast and multicast, so Minecraft Java Edition LAN worlds appear in the multiplayer list as if everyone were on the same cable. It has been tested with Minecraft Java 1.8.5.</p>
+          </details>
+          <details>
+            <summary>Do I need to configure a server?</summary>
+            <p>No. Download the app, create a room with a name and password, and share that name and password with the other players. The public rendezvous and relay are built in.</p>
+          </details>
+          <details>
+            <summary>Is my traffic encrypted?</summary>
+            <p>Yes. Traffic uses Noise XX authentication and ChaCha20-Poly1305 encryption. The relay forwards only encrypted packets and never sees the room password or traffic keys.</p>
+          </details>
+          <details>
+            <summary>Does it work on the same Wi-Fi network?</summary>
+            <p>Yes. Nuuvia advertises local endpoints and tries a direct LAN path first. If the router uses AP isolation or blocks client-to-client traffic, the encrypted relay can still connect players.</p>
+          </details>
+          <details>
+            <summary>How many players can join a room?</summary>
+            <p>Up to 8 participants per room. You can keep multiple rooms connected at the same time; they share one local TAP and IP.</p>
+          </details>
+          <details>
+            <summary>Which languages does the interface support?</summary>
+            <p>English, Spanish, and Portuguese. Choose the language in <strong>Settings → Language</strong>.</p>
+          </details>
+          <details>
+            <summary>Why does Windows show a SmartScreen warning?</summary>
+            <p>The binaries are not code-signed yet. You can build from source, inspect the code, or continue through SmartScreen if you trust the release.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band" aria-labelledby="cta-title">
+      <div class="container cta-inner reveal">
+        <div>
+          <p class="eyebrow">Ready when you are</p>
+          <h2 id="cta-title">The LAN party is back.</h2>
+          <p>Install Nuuvia, create a room, and share the name and password.</p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/latest" rel="noopener">Download latest</a>
+          <a class="btn btn-secondary" href="https://github.com/cesarzxk/nuuvia-vpn" rel="noopener">Star on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <a class="brand footer-brand" href="#top" aria-label="Nuuvia home">
+          <img src="./assets/nuuvia-256.png" width="34" height="34" alt="">
+          <span class="brand-name">Nuuvia</span>
+        </a>
+        <p>Encrypted virtual LAN for games. Free and open source.</p>
+      </div>
+      <nav aria-label="Project links">
+        <h2>Project</h2>
+        <a href="https://github.com/cesarzxk/nuuvia-vpn" rel="noopener">GitHub</a>
+        <a href="https://github.com/cesarzxk/nuuvia-vpn/releases" rel="noopener">Releases</a>
+        <a href="https://github.com/cesarzxk/nuuvia-vpn/blob/main/LICENSE" rel="noopener">MIT License</a>
+      </nav>
+      <nav aria-label="Documentation links">
+        <h2>Documentation</h2>
+        <a href="https://github.com/cesarzxk/nuuvia-vpn#readme" rel="noopener">README (English)</a>
+        <a href="https://github.com/cesarzxk/nuuvia-vpn/blob/main/README.pt-BR.md" rel="noopener">README (Português)</a>
+        <a href="https://github.com/cesarzxk/nuuvia-vpn/blob/main/docs/architecture.md" rel="noopener">Architecture</a>
+      </nav>
+    </div>
+    <div class="container footer-bottom">
+      <p>© <span id="year">2026</span> Nuuvia contributors. Not affiliated with Mojang or Microsoft.</p>
+      <p>Made with Rust and egui.</p>
+    </div>
+  </footer>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
