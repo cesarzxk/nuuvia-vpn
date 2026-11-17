@@ -27,6 +27,62 @@ const MANIFEST: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?
   </dependency>
 </assembly>"#;
 
+fn version_info(description: &str, internal: &str, original: &str) -> String {
+    let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.0.0".into());
+    let mut parts = version.split(['.', '-', '+']);
+    let mut numbers = [0u16; 4];
+    for number in &mut numbers {
+        if let Some(part) = parts.next() {
+            *number = part.parse().unwrap_or(0);
+        }
+    }
+    format!(
+        r#"
+1 VERSIONINFO
+FILEVERSION {},{},{},{}
+PRODUCTVERSION {},{},{},{}
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "CompanyName", "Nuuvia contributors\0"
+      VALUE "FileDescription", "{}\0"
+      VALUE "FileVersion", "{}\0"
+      VALUE "InternalName", "{}\0"
+      VALUE "LegalCopyright", "MIT License\0"
+      VALUE "OriginalFilename", "{}\0"
+      VALUE "ProductName", "Nuuvia\0"
+      VALUE "ProductVersion", "{}\0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
+"#,
+        numbers[0],
+        numbers[1],
+        numbers[2],
+        numbers[3],
+        numbers[0],
+        numbers[1],
+        numbers[2],
+        numbers[3],
+        description,
+        version,
+        internal,
+        original,
+        version
+    )
+}
+
 fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
@@ -48,7 +104,10 @@ fn main() {
     let icon_path = icon.to_string_lossy().replace('\\', "/");
     let manifest_path = manifest.to_string_lossy().replace('\\', "/");
     let rc = out.join("nuvia.rc");
-    let rc_text = format!("1 24 \"{manifest_path}\"\nIDI_ICON1 ICON \"{icon_path}\"\n");
+    let rc_text = format!(
+        "1 24 \"{manifest_path}\"\nIDI_ICON1 ICON \"{icon_path}\"\n{}",
+        version_info("Nuuvia VPN GUI", "nuvia-gui", "nuvia-gui.exe")
+    );
     if let Err(error) = std::fs::write(&rc, rc_text) {
         println!("cargo:warning=resource script: {error}");
         return;
