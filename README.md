@@ -1,6 +1,6 @@
 # Nuuvia
 
-**English** | [Português](README.pt-BR.md) · [Website](https://nuuvia.devcesar.com/)
+**English** | [Português](README.pt-BR.md) · [Website](https://nuuvia.devcesar.com/) · [![Buy me a coffee](https://img.shields.io/badge/Buy_me_a_coffee-0D0C22?style=flat-square&logo=buymeacoffee&logoColor=FFDD00&labelColor=0D0C22&color=0D0C22)](https://buymeacoffee.com/cesarzxk)
 
 Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
@@ -15,12 +15,6 @@ including **broadcast** and **multicast** discovery.
 > The product name is **Nuuvia**. Internal identifiers, binaries (`nuvia`,
 > `nuvia-gui`), packages, configuration paths, and TAP names keep the original
 > `nuvia` spelling for compatibility with existing installs.
-
-<p align="center">
-  <a href="https://buymeacoffee.com/cesarzxk" rel="noopener">
-    <img src="docs/assets/buy-me-a-coffee.png" alt="Buy me a coffee" width="300" height="64">
-  </a>
-</p>
 
 ## Demo
 
