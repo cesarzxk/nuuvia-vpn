@@ -1,4 +1,4 @@
-# nuvia
+# Nuuvia
 
 [English](README.md) | **Português**
 
@@ -6,11 +6,15 @@ LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
 
-> Status: **1.1.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
+> Status: **1.2.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
 > com caminho direto ou relay, status por participante, lista de redes
 > persistida e fechar para a bandeja (tray).
+
+> O nome do produto é **Nuuvia**. Identificadores internos, binários (`nuvia`,
+> `nuvia-gui`), pacotes, caminhos de configuração e nomes de TAP mantêm a grafia
+> original `nuvia` para compatibilidade com instalações existentes.
 
 ## Demonstração
 
@@ -22,7 +26,7 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
   <img src="docs/screenshots/create-network.png" width="24%" alt="Criar ou entrar em uma rede">
   <img src="docs/screenshots/relay.png" width="24%" alt="Caminho relay, latência e participante offline">
   <img src="docs/screenshots/settings.png" width="24%" alt="Ajustes e seletor de idioma">
-  <img src="docs/screenshots/about.png" width="24%" alt="Sobre o nuvia 1.1.0">
+  <img src="docs/screenshots/about.png" width="24%" alt="Sobre o Nuuvia 1.2.0">
 </p>
 
 ## O que já funciona
@@ -92,7 +96,7 @@ Jogos anunciam salas com UDP broadcast (`255.255.255.255`) ou multicast
 (Minecraft Java usa `224.0.2.60:4445`). Multicast costuma sair com **TTL 1**, e
 um VPN L3 (WireGuard/Tailscale) roteia e descarta. VPNs L2 comerciais
 funcionam porque entregam um único domínio de broadcast. É exatamente isso que
-o nuvia faz: um switch Ethernet virtual sobre UDP criptografado.
+o Nuuvia faz: um switch Ethernet virtual sobre UDP criptografado.
 
 ## GUI (Linux e Windows)
 
@@ -110,7 +114,7 @@ senha. A GUI suporta até 8 participantes por sala e várias salas ao mesmo
 tempo, todas no mesmo TAP/IP local. Para jogar:
 
 1. Deixe a rede conectada.
-2. Abra o jogo **depois** do nuvia e use **Open to LAN**.
+2. Abra o jogo **depois** do Nuuvia e use **Open to LAN**.
 3. No outro PC, o mundo deve aparecer na lista de LAN.
 
 As rotas de descoberta são instaladas **uma única vez no TAP compartilhado** e
@@ -130,7 +134,7 @@ idioma), **Sobre** e **Sair**. A interface pode ser trocada entre inglês,
 espanhol e português em **Ajustes → Idioma**.
 
 As redes são salvas em `rooms.toml` (no mesmo diretório da identidade) e
-restauradas ao abrir, sem conectar automaticamente. Ao fechar a janela, o nuvia
+restauradas ao abrir, sem conectar automaticamente. Ao fechar a janela, o Nuuvia
 continua rodando na **bandeja do sistema**; clique no ícone para restaurar a
 janela ou use **Sair** no menu da bandeja/AJUDA. Se o ambiente não tiver bandeja
 (StatusNotifier), fechar encerra normalmente.
@@ -219,7 +223,7 @@ sudo ./target/release/nuvia --identity "$HOME/.config/nuvia/identity.toml" up \
 Na máquina B (IP físico `192.168.1.20`), troque o IP para `10.240.0.2/24` e o
 peer para `<PUB_A>@192.168.1.10:42424`.
 
-> O `sudo` normalmente troca `HOME` para `/root`. Sem `--identity`, o nuvia
+> O `sudo` normalmente troca `HOME` para `/root`. Sem `--identity`, o Nuuvia
 > criaria uma identidade nova em `/root/.config/nuvia` e a chave pública não
 > bateria com a do outro lado.
 
@@ -276,7 +280,7 @@ reinstala o driver quando ele já está presente.
 
 ### O que o Windows configura automaticamente
 
-O nuvia cria **um único adaptador `nuvia0`**, configura IP/MTU, instala as
+O Nuuvia cria **um único adaptador `nuvia0`**, configura IP/MTU, instala as
 rotas de descoberta, coloca a **métrica da interface em 1**, marca o TAP como
 rede **Private** e cria a regra de firewall `nuvia-nuvia0`. Passo a passo em
 [`deploy/windows/README.md`](deploy/windows/README.md).
@@ -291,10 +295,10 @@ Validado em um Windows 11 real com Minecraft Java 1.8.5.
 
 Gera:
 
-- `dist/nuvia_1.1.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.2.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
   `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.1.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
+- `dist/nuvia-1.2.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
   para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
