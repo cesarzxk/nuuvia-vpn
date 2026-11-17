@@ -14,8 +14,11 @@ use std::sync::Arc;
 
 use eframe::egui::{self, ViewportCommand};
 
+use crate::i18n::Lang;
+
 pub struct Tray {
     active: Arc<AtomicBool>,
+    lang: Lang,
     #[cfg(target_os = "linux")]
     _linux: Option<LinuxTrayHandle>,
     #[cfg(windows)]
@@ -23,19 +26,20 @@ pub struct Tray {
 }
 
 impl Tray {
-    pub fn spawn(ctx: egui::Context, quitting: Arc<AtomicBool>) -> Self {
+    pub fn spawn(ctx: egui::Context, quitting: Arc<AtomicBool>, lang: Lang) -> Self {
         #[cfg(target_os = "linux")]
         {
-            return spawn_linux(ctx, quitting);
+            return spawn_linux(ctx, quitting, lang);
         }
 
         #[cfg(windows)]
         {
-            return match WindowsTray::new(ctx, quitting) {
+            return match WindowsTray::new(ctx, quitting, lang) {
                 Ok(tray) => {
                     tracing::info!("system tray ready");
                     Self {
                         active: Arc::new(AtomicBool::new(true)),
+                        lang,
                         _windows: Some(tray),
                     }
                 }
@@ -43,6 +47,7 @@ impl Tray {
                     tracing::warn!(%error, "system tray unavailable; closing exits the app");
                     Self {
                         active: Arc::new(AtomicBool::new(false)),
+                        lang,
                         _windows: None,
                     }
                 }
@@ -54,6 +59,7 @@ impl Tray {
             let _ = (ctx, quitting);
             Self {
                 active: Arc::new(AtomicBool::new(false)),
+                lang,
                 #[cfg(target_os = "linux")]
                 _linux: None,
                 #[cfg(windows)]
@@ -64,6 +70,14 @@ impl Tray {
 
     pub fn is_active(&self) -> bool {
         self.active.load(Ordering::Relaxed)
+    }
+
+    /// Rebuilds the tray menu after the interface language changes.
+    pub fn set_language(&mut self, ctx: egui::Context, quitting: Arc<AtomicBool>, lang: Lang) {
+        if self.lang == lang {
+            return;
+        }
+        *self = Self::spawn(ctx, quitting, lang);
     }
 }
 
@@ -89,21 +103,32 @@ enum LinuxTrayHandle {
         _handle: ksni::blocking::Handle<LinuxTray>,
     },
     Helper {
-        _child: std::process::Child,
+        child: std::process::Child,
     },
 }
 
 #[cfg(target_os = "linux")]
-fn spawn_linux(ctx: egui::Context, quitting: Arc<AtomicBool>) -> Tray {
+impl Drop for LinuxTrayHandle {
+    fn drop(&mut self) {
+        if let Self::Helper { child } = self {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn spawn_linux(ctx: egui::Context, quitting: Arc<AtomicBool>, lang: Lang) -> Tray {
     use ksni::blocking::TrayMethods;
 
     let active = Arc::new(AtomicBool::new(false));
 
     if unsafe { libc::geteuid() } == 0 {
-        if let Some(child) = spawn_tray_helper(&ctx, &quitting, &active) {
+        if let Some(child) = spawn_tray_helper(&ctx, &quitting, &active, lang) {
             return Tray {
                 active,
-                _linux: Some(LinuxTrayHandle::Helper { _child: child }),
+                lang,
+                _linux: Some(LinuxTrayHandle::Helper { child }),
             };
         }
     } else {
@@ -112,6 +137,7 @@ fn spawn_linux(ctx: egui::Context, quitting: Arc<AtomicBool>) -> Tray {
             ctx,
             quitting,
             icon_theme: ensure_icon_files(),
+            lang,
         };
         match tray.spawn() {
             Ok(handle) => {
@@ -119,6 +145,7 @@ fn spawn_linux(ctx: egui::Context, quitting: Arc<AtomicBool>) -> Tray {
                 active.store(true, Ordering::Relaxed);
                 return Tray {
                     active,
+                    lang,
                     _linux: Some(LinuxTrayHandle::InProcess { _handle: handle }),
                 };
             }
@@ -130,6 +157,7 @@ fn spawn_linux(ctx: egui::Context, quitting: Arc<AtomicBool>) -> Tray {
 
     Tray {
         active,
+        lang,
         _linux: None,
     }
 }
@@ -139,6 +167,7 @@ fn spawn_tray_helper(
     ctx: &egui::Context,
     quitting: &Arc<AtomicBool>,
     active: &Arc<AtomicBool>,
+    lang: Lang,
 ) -> Option<std::process::Child> {
     use std::os::unix::fs::PermissionsExt;
     use std::os::unix::process::CommandExt;
@@ -157,6 +186,7 @@ fn spawn_tray_helper(
     command
         .arg("--tray-helper")
         .arg(&socket)
+        .arg(lang.code())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -280,6 +310,7 @@ struct LinuxTray {
     ctx: egui::Context,
     quitting: Arc<AtomicBool>,
     icon_theme: Option<String>,
+    lang: Lang,
 }
 
 #[cfg(target_os = "linux")]
@@ -289,7 +320,7 @@ impl ksni::Tray for LinuxTray {
     }
 
     fn title(&self) -> String {
-        "nuvia VPN".into()
+        self.lang.strings().tray_tooltip.into()
     }
 
     fn icon_name(&self) -> String {
@@ -310,9 +341,10 @@ impl ksni::Tray for LinuxTray {
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
         use ksni::menu::{MenuItem, StandardItem};
+        let t = self.lang.strings();
         vec![
             StandardItem {
-                label: "Abrir nuvia".into(),
+                label: t.tray_open.into(),
                 icon_name: "window-new".into(),
                 activate: Box::new(|tray: &mut Self| show(&tray.ctx)),
                 ..Default::default()
@@ -320,7 +352,7 @@ impl ksni::Tray for LinuxTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "Sair".into(),
+                label: t.tray_quit.into(),
                 icon_name: "application-exit".into(),
                 activate: Box::new(|tray: &mut Self| quit(&tray.ctx, &tray.quitting)),
                 ..Default::default()
@@ -332,27 +364,39 @@ impl ksni::Tray for LinuxTray {
 
 #[cfg(target_os = "linux")]
 fn ensure_icon_files() -> Option<String> {
-    let home = std::env::var_os("HOME")?;
-    let icons = std::path::PathBuf::from(home).join(".local/share/icons");
-    for (size, data) in [
-        (
-            64usize,
-            include_bytes!("../assets/nuvia-tray-64.png").as_slice(),
-        ),
-        (
-            256usize,
-            include_bytes!("../assets/nuvia-tray-256.png").as_slice(),
-        ),
-    ] {
-        let dir = icons
-            .join("hicolor")
-            .join(format!("{size}x{size}"))
-            .join("apps");
-        if std::fs::create_dir_all(&dir).is_ok() {
-            let _ = std::fs::write(dir.join("nuvia.png"), data);
+    let home = std::path::PathBuf::from(std::env::var_os("HOME")?);
+    let roots = [home.join(".local/share/icons"), home.join(".icons")];
+    for root in &roots {
+        for (size, data) in [
+            (
+                64usize,
+                include_bytes!("../assets/nuvia-tray-64.png").as_slice(),
+            ),
+            (
+                256usize,
+                include_bytes!("../assets/nuvia-tray-256.png").as_slice(),
+            ),
+        ] {
+            let dir = root
+                .join("hicolor")
+                .join(format!("{size}x{size}"))
+                .join("apps");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                let _ = std::fs::write(dir.join("nuvia.png"), data);
+            }
         }
+
+        // Cinnamon/xapp caches icon lookups. Refresh the cache after adding the
+        // file, otherwise a newly installed nuvia can keep a blank tray icon
+        // until the panel is restarted.
+        let _ = std::process::Command::new("gtk-update-icon-cache")
+            .args(["-f", "-t"])
+            .arg(root.join("hicolor"))
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
     }
-    Some(icons.to_string_lossy().to_string())
+    Some(roots[0].to_string_lossy().to_string())
 }
 
 #[cfg(target_os = "linux")]
@@ -397,17 +441,23 @@ fn tray_icon_pixmap() -> Vec<ksni::Icon> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn helper_socket_arg() -> Option<String> {
+pub fn helper_args() -> Option<(String, Lang)> {
     let mut args = std::env::args().skip(1);
     if args.next().as_deref() == Some("--tray-helper") {
-        args.next()
+        let socket = args.next()?;
+        let lang = args
+            .next()
+            .and_then(|value| Lang::from_code(&value))
+            .or_else(Lang::from_env)
+            .unwrap_or_else(Lang::from_locale);
+        Some((socket, lang))
     } else {
         None
     }
 }
 
 #[cfg(target_os = "linux")]
-pub fn run_helper(socket: &str) -> i32 {
+pub fn run_helper(socket: &str, lang: Lang) -> i32 {
     use ksni::blocking::TrayMethods;
     use std::os::unix::net::UnixStream;
     use std::sync::Mutex;
@@ -436,6 +486,7 @@ pub fn run_helper(socket: &str) -> i32 {
     let tray = HelperTray {
         writer: writer.clone(),
         icon_theme: ensure_icon_files(),
+        lang,
     };
     let _handle = match tray.spawn() {
         Ok(handle) => handle,
@@ -453,6 +504,7 @@ pub fn run_helper(socket: &str) -> i32 {
 struct HelperTray {
     writer: Arc<std::sync::Mutex<std::os::unix::net::UnixStream>>,
     icon_theme: Option<String>,
+    lang: Lang,
 }
 
 #[cfg(target_os = "linux")]
@@ -471,7 +523,7 @@ impl ksni::Tray for HelperTray {
     }
 
     fn title(&self) -> String {
-        "nuvia VPN".into()
+        self.lang.strings().tray_tooltip.into()
     }
 
     fn icon_name(&self) -> String {
@@ -492,9 +544,10 @@ impl ksni::Tray for HelperTray {
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
         use ksni::menu::{MenuItem, StandardItem};
+        let t = self.lang.strings();
         vec![
             StandardItem {
-                label: "Abrir nuvia".into(),
+                label: t.tray_open.into(),
                 icon_name: "window-new".into(),
                 activate: Box::new(|tray: &mut Self| helper_send(&tray.writer, "show")),
                 ..Default::default()
@@ -502,7 +555,7 @@ impl ksni::Tray for HelperTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "Sair".into(),
+                label: t.tray_quit.into(),
                 icon_name: "application-exit".into(),
                 activate: Box::new(|tray: &mut Self| {
                     helper_send(&tray.writer, "quit");
@@ -522,13 +575,14 @@ struct WindowsTray {
 
 #[cfg(windows)]
 impl WindowsTray {
-    fn new(ctx: egui::Context, quitting: Arc<AtomicBool>) -> anyhow::Result<Self> {
+    fn new(ctx: egui::Context, quitting: Arc<AtomicBool>, lang: Lang) -> anyhow::Result<Self> {
         use tray_icon::menu::{Menu, MenuEvent, MenuItem};
         use tray_icon::{Icon, TrayIconBuilder, TrayIconEvent};
 
+        let t = lang.strings();
         let menu = Menu::new();
-        let open = MenuItem::new("Abrir nuvia", true, None);
-        let quit_item = MenuItem::new("Sair", true, None);
+        let open = MenuItem::new(t.tray_open, true, None);
+        let quit_item = MenuItem::new(t.tray_quit, true, None);
         menu.append_items(&[&open, &quit_item])?;
         let open_id = open.id().clone();
         let quit_id = quit_item.id().clone();
@@ -537,7 +591,7 @@ impl WindowsTray {
         let icon = Icon::from_rgba(data.rgba, data.width, data.height)?;
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
-            .with_tooltip("nuvia VPN")
+            .with_tooltip(t.tray_tooltip)
             .with_icon(icon)
             .with_menu_on_left_click(false)
             .build()?;
