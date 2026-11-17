@@ -1,5 +1,5 @@
 #Requires -RunAsAdministrator
-# Removes stale TAP-Windows adapters created by old nuvia attempts.
+# Removes stale TAP-Windows adapters created by old Nuuvia attempts.
 # WARNING: this also removes TAP adapters used by OpenVPN or another VPN.
 # Close those programs first. The driver package itself is kept; run
 # install-tap.ps1 afterwards to create a clean adapter.
