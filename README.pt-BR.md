@@ -16,6 +16,12 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
 > `nuvia-gui`), pacotes, caminhos de configuração e nomes de TAP mantêm a grafia
 > original `nuvia` para compatibilidade com instalações existentes.
 
+<p align="center">
+  <a href="https://buymeacoffee.com/cesarzxk" rel="noopener">
+    <img src="docs/assets/buy-me-a-coffee.png" alt="Pague um café para o Nuuvia" width="300" height="64">
+  </a>
+</p>
+
 ## Demonstração
 
 <p align="center">
