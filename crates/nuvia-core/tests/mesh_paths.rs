@@ -99,6 +99,22 @@ async fn wait_for_path(peer: &mut Peer, tag: [u8; 8], direct: bool) {
     .expect("mesh status timeout");
 }
 
+async fn wait_for_ping(peer: &mut Peer, tag: [u8; 8]) {
+    timeout(Duration::from_secs(6), async {
+        while let Some(status) = peer.status.recv().await {
+            if let TunnelStatus::Ping { tag: seen, ms } = status {
+                if seen == tag {
+                    assert!(ms < 5_000, "unexpected ping: {ms} ms");
+                    return;
+                }
+            }
+        }
+        panic!("mesh status channel closed before reporting a ping");
+    })
+    .await
+    .expect("mesh ping timeout");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn marks_a_direct_peer_as_direct() {
     let socket_a = UdpSocket::bind("127.0.0.1:0").await.unwrap();
@@ -113,6 +129,7 @@ async fn marks_a_direct_peer_as_direct() {
     peer_a.outbound.send(vec![0xAA; 60]).await.unwrap();
     wait_for_frame(&mut peer_b, &[0xAA; 60]).await;
     wait_for_path(&mut peer_b, TAG_A, true).await;
+    wait_for_ping(&mut peer_b, TAG_A).await;
 
     peer_a.task.abort();
     peer_b.task.abort();
@@ -124,6 +141,7 @@ async fn marks_a_relayed_peer_as_relay() {
     let relay_addr = relay.local_addr().unwrap();
     let socket_a = UdpSocket::bind("127.0.0.1:0").await.unwrap();
     let socket_b = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let addr_a = socket_a.local_addr().unwrap();
     let addr_b = socket_b.local_addr().unwrap();
 
     let relay_task = tokio::spawn(async move {
@@ -135,9 +153,11 @@ async fn marks_a_relayed_peer_as_relay() {
             let Ok(packet) = decode_relay(&buffer[..length]) else {
                 continue;
             };
-            if packet.dst == nuvia_protocol::BROADCAST_TAG {
-                let _ = relay.send_to(packet.inner, addr_b).await;
+            if packet.dst != nuvia_protocol::BROADCAST_TAG {
+                continue;
             }
+            let target = if packet.src == TAG_A { addr_b } else { addr_a };
+            let _ = relay.send_to(packet.inner, target).await;
         }
     });
 
@@ -147,6 +167,7 @@ async fn marks_a_relayed_peer_as_relay() {
     peer_a.outbound.send(vec![0xBB; 60]).await.unwrap();
     wait_for_frame(&mut peer_b, &[0xBB; 60]).await;
     wait_for_path(&mut peer_b, TAG_A, false).await;
+    wait_for_ping(&mut peer_b, TAG_A).await;
 
     peer_a.task.abort();
     peer_b.task.abort();
