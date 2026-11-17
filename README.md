@@ -16,6 +16,12 @@ including **broadcast** and **multicast** discovery.
 > `nuvia-gui`), packages, configuration paths, and TAP names keep the original
 > `nuvia` spelling for compatibility with existing installs.
 
+<p align="center">
+  <a href="https://buymeacoffee.com/cesarzxk" rel="noopener">
+    <img src="docs/assets/buy-me-a-coffee.png" alt="Buy me a coffee" width="300" height="64">
+  </a>
+</p>
+
 ## Demo
 
 <p align="center">
