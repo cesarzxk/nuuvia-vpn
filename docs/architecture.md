@@ -39,7 +39,7 @@ VPNs L2 comerciais são L2 pelo mesmo motivo.
                │ chamadas no processo
 ┌──────────────▼────────────────┐
 │ nuvia-core (root/admin)       │
-│  TAP por rede, rotas, UDP     │
+│  TAP compartilhado, rotas, UDP│
 │  Noise, AEAD, rendezvous      │
 └──────────────┬────────────────┘
                │ UDP cifrado
@@ -49,8 +49,8 @@ VPNs L2 comerciais são L2 pelo mesmo motivo.
 ```
 
 Hoje a GUI e o núcleo rodam no mesmo processo (que precisa de root/admin). O
-serviço separado e a UI sem privilégios entram no M4; o core já está separado em
-`nuvia-core`.
+serviço separado e a UI sem privilégios continuam no roadmap (M6); o core já
+está separado em `nuvia-core`.
 
 Crates:
 
@@ -195,7 +195,7 @@ Na interface física, UDP `42424` (broadcast + multicast), a cada 2 s:
   sala.
 - No mesh da GUI: um único IP `10.240.<a>.<b>/16`, estável por identidade e
   compartilhado por todas as salas; os octetos vêm de BLAKE3(public_key).
-- No mesh futuro com claim/beacon, o IP será o menor livre reivindicado.
+- No mesh da GUI, o IP é o mesmo para todas as salas e estável por identidade.
 - MAC = MAC do TAP local (ver 4.1). O MAC é anunciado no handshake/beacon.
 
 ### 5.3 Switch L2
@@ -252,8 +252,8 @@ nas duas direções (Linux hospeda/Windows entra e vice-versa).
 - Driver `tap-windows6` assinado (9.27.0), instalado pelo setup uma vez.
 - O nuvia cria **um único adaptador `nuvia0`** para todas as salas; exigir
   admin enquanto GUI e core rodam no mesmo processo.
-- Serviço `LocalSystem` + UI sem privilégios via named pipe/localhost ficam para
-  o M4.
+- Serviço `LocalSystem` + UI sem privilégios via named pipe/localhost continuam
+  no roadmap (M6).
 - Perfil de rede **Private** + regra de firewall de entrada `nuvia-nuvia0`;
   sem isso a descoberta não funciona.
 - Métrica da interface do TAP em **1**; sem isso o Windows escolhe a Ethernet
@@ -273,9 +273,10 @@ nas duas direções (Linux hospeda/Windows entra e vice-versa).
 3. Relay            A ───► servidor ───► B
 ```
 
-Hoje o cliente **AUTO** tenta o hole punching direto por 8 s e cai no relay
-sozinho; o CLI pode forçar `--relay` ou `--direct`. A GUI usa sempre AUTO. A
-migração de volta para direct e o fallback automático após queda ficam para o
+Hoje o CLI **AUTO** tenta o hole punching direto por 8 s e cai no relay
+sozinho; o CLI pode forçar `--relay` ou `--direct`. A GUI usa mesh e envia para
+os endpoints diretos e para o relay em paralelo, mostrando o caminho por peer.
+A migração de volta para direct e o fallback automático após queda ficam para o
 M6.
 
 ### 8.2 Rendezvous
@@ -370,11 +371,11 @@ de egress; um VPS de US$ 5–6 atende bem. O gargalo é banda, não CPU.
 |---|---|
 | M0 | `ping 10.240.x.y` e broadcast direcionado entre dois netns ✅ |
 | M1a | Windows: TAP, rotas, firewall, métrica e ping ✅ |
-| M1b | GUI compacta multi-rede, lista persistida e tray |
-| M2 | 3 peers se descobrem sozinhos; lista de IPs na UI |
+| M1b | GUI compacta multi-rede, lista persistida e tray ✅ |
+| M2 | 2–8 peers se descobrem sozinhos; status por peer e TAP/IP compartilhado ✅ |
 | M3a | rotas de descoberta + multicast `224.0.2.60:4445` no teste ✅ |
 | M3 | Minecraft Java 1.8.5 LAN Linux ↔ Windows ✅ |
-| M4 | instala, reinicia e sobe sozinho; `doctor` verde |
+| M4 | instaladores NSIS/.deb/AppImage, ícones e tray ✅; assinatura/autostart no M6 |
 | M5a | rendezvous + convite + handshake direto (teste local) ✅ |
 | M5b | relay cifrado + NAT simétrico (teste local e VPS) ✅ |
 | M5 | Minecraft entre duas redes diferentes via relay ✅ |
