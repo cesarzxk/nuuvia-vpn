@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=nuvia VPN
+GenericName=Virtual LAN
+Comment=LAN virtual criptografada para jogos
+Exec=/usr/bin/nuvia-gui-launch
+TryExec=/usr/bin/nuvia-gui
+Icon=nuvia
+Terminal=false
+Categories=Network;Utility;
+StartupWMClass=nuvia
+Keywords=vpn;lan;minecraft;games;
