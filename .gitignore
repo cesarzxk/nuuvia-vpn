@@ -1,0 +1,20 @@
+/target
+/dist
+**/*.rs.bk
+
+# Secrets: identities, SSH keys, driver keys, local env
+*.key
+*.key.pub
+*.pem
+*.p12
+.env
+.env.*
+.nuvia/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Logs
+*.log
