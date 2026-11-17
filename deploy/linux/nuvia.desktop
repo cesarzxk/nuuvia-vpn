@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=nuvia VPN
+Name=Nuuvia VPN
 GenericName=Virtual LAN
 Comment=LAN virtual criptografada para jogos
 Exec=/usr/bin/nuvia-gui-launch
