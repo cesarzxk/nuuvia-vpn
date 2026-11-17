@@ -40,6 +40,7 @@ install -m 0644 deploy/linux/nuvia-256.png "$DEB/usr/share/icons/hicolor/256x256
 install -m 0644 deploy/linux/nuvia-128.png "$DEB/usr/share/icons/hicolor/128x128/apps/nuvia.png"
 install -m 0644 deploy/linux/nuvia-64.png "$DEB/usr/share/icons/hicolor/64x64/apps/nuvia.png"
 install -m 0644 README.md "$DEB/usr/share/doc/nuvia/README.md"
+install -m 0644 README.pt-BR.md "$DEB/usr/share/doc/nuvia/README.pt-BR.md"
 
 SIZE="$(du -sk "$DEB/usr" | cut -f1)"
 cat > "$DEB/DEBIAN/control" <<EOF
