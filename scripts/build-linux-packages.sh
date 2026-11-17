@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-: "${VERSION:=1.0.0}"
+: "${VERSION:=1.1.0}"
 ARCH="amd64"
 OUT="$ROOT/dist"
 WORK="$OUT/linux"
