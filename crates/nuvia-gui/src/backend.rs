@@ -11,6 +11,7 @@ use nuvia_protocol::{peer_tag, PeerInfo};
 use tokio::net::UdpSocket;
 
 use crate::config::SERVER_URL;
+use crate::i18n::{render, Lang};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
@@ -42,6 +43,11 @@ pub enum Event {
         tag: [u8; nuvia_protocol::PEER_TAG_LEN],
         direct: bool,
     },
+    PeerPing {
+        room: String,
+        tag: [u8; nuvia_protocol::PEER_TAG_LEN],
+        ms: u32,
+    },
     Connected {
         room: String,
         relay: bool,
@@ -64,6 +70,7 @@ pub struct RoomConfig {
     pub tap_name: String,
     pub bind_port: u16,
     pub identity_path: PathBuf,
+    pub lang: Lang,
 }
 
 pub struct Backend {
@@ -103,8 +110,12 @@ impl Backend {
     }
 
     pub fn join(&mut self, config: RoomConfig) -> Result<()> {
+        let t = config.lang.strings();
         if self.sessions.contains_key(&config.name) {
-            bail!("a rede {} já está conectada", config.name);
+            bail!(
+                "{}",
+                render(t.backend_already_connected, &[("name", &config.name)])
+            );
         }
 
         let room = config.name.clone();
@@ -149,13 +160,19 @@ impl Backend {
 }
 
 async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Result<()> {
+    let t = config.lang.strings();
     if config.password.is_empty() {
-        bail!("a senha da rede está vazia");
+        bail!("{}", t.backend_empty_password);
     }
 
-    let identity = Identity::load_or_create(&config.identity_path, hostname())
-        .with_context(|| format!("carregando identidade {}", config.identity_path.display()))?;
-    let room = RoomKey::derive(&config.name, &config.password).context("derivando a rede")?;
+    let identity =
+        Identity::load_or_create(&config.identity_path, hostname()).with_context(|| {
+            render(
+                t.backend_loading_identity,
+                &[("path", &config.identity_path.display().to_string())],
+            )
+        })?;
+    let room = RoomKey::derive(&config.name, &config.password).context(t.backend_deriving_room)?;
     let token = room.relay_token();
     let server_udp = default_server_udp(SERVER_URL)?;
     tracing::info!(room = %config.name, room_id = %room.id_hex(), "joining room");
@@ -167,7 +184,12 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
 
     let socket = UdpSocket::bind(("0.0.0.0", config.bind_port))
         .await
-        .with_context(|| format!("porta UDP {} ocupada", config.bind_port))?;
+        .with_context(|| {
+            render(
+                t.backend_port_busy,
+                &[("port", &config.bind_port.to_string())],
+            )
+        })?;
 
     let mut rendezvous = RendezvousConfig::new(
         SERVER_URL.to_string(),
@@ -180,13 +202,16 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
         rendezvous.set_local_endpoints(bind);
     }
     rendezvous.name = hostname();
-    let client = RendezvousClient::new(rendezvous).context("criando cliente rendezvous")?;
+    let client = RendezvousClient::new(rendezvous).context(t.backend_rendezvous_client)?;
 
     let _ = events.send(Event::Phase {
         room: config.name.clone(),
         phase: Phase::Searching,
     });
-    let response = client.announce(&socket).await.context("entrando na sala")?;
+    let response = client
+        .announce(&socket)
+        .await
+        .context(t.backend_joining_room)?;
 
     let own_ip = mesh_ip(identity.public_key());
     let participants = participant_list(&response.peers);
@@ -203,11 +228,11 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
 
     let server_addr = nuvia_core::rendezvous::resolve_udp(&server_udp)
         .await
-        .with_context(|| format!("resolvendo relay {server_udp}"))?;
+        .with_context(|| render(t.backend_resolving_relay, &[("server", &server_udp)]))?;
     let tap = hub
         .register(config.name.clone(), own_ip)
         .await
-        .context("preparando o TAP compartilhado")?;
+        .context(t.backend_preparing_tap)?;
 
     let (status_tx, mut status_rx) = tokio::sync::mpsc::channel(64);
     let status_events = events.clone();
@@ -227,6 +252,11 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
                     room: room_name.clone(),
                     tag,
                     direct,
+                },
+                TunnelStatus::Ping { tag, ms } => Event::PeerPing {
+                    room: room_name.clone(),
+                    tag,
+                    ms,
                 },
             };
             let _ = status_events.send(event);
