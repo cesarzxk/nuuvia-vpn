@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-: "${VERSION:=1.1.0}"
+: "${VERSION:=1.2.0}"
 ARCH="amd64"
 OUT="$ROOT/dist"
 WORK="$OUT/linux"
@@ -55,7 +55,7 @@ Recommends: libwayland-client0
 Maintainer: nuvia <nuvia@localhost>
 Homepage: https://github.com/
 Description: LAN virtual criptografada para jogos
- O nuvia cria uma Ethernet virtual Layer 2 sobre UDP criptografado,
+ O Nuuvia cria uma Ethernet virtual Layer 2 sobre UDP criptografado,
  permitindo descoberta de LAN em jogos (Minecraft, etc.) entre Linux e
  Windows. A GUI usa TAP, rotas de descoberta e relay na internet.
 EOF
