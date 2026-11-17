@@ -46,11 +46,14 @@ BrandingText "Nuuvia"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta de instalação do Nuuvia."
 
 VIProductVersion "1.2.0.0"
-VIAddVersionKey "ProductName" "Nuuvia VPN"
+VIAddVersionKey "CompanyName" "Nuuvia contributors"
+VIAddVersionKey "ProductName" "Nuuvia"
 VIAddVersionKey "FileDescription" "Instalador do Nuuvia VPN"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
-VIAddVersionKey "LegalCopyright" "MIT"
+VIAddVersionKey "InternalName" "nuvia-setup"
+VIAddVersionKey "OriginalFilename" "nuvia-setup-x86_64.exe"
+VIAddVersionKey "LegalCopyright" "MIT License"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
