@@ -7,6 +7,8 @@
 *.key.pub
 *.pem
 *.p12
+*.pfx
+*.pvk
 .env
 .env.*
 .nuvia/
