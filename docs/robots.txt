@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://cesarzxk.github.io/nuuvia-vpn/sitemap.xml
+Sitemap: https://nuuvia.devcesar.com/sitemap.xml
