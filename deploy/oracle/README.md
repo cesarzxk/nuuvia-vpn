@@ -1,8 +1,8 @@
 # Deploy na Oracle Cloud
 
-O servidor de rendezvous roda em uma VPS pequena. Ele **não** carrega o tráfego
-L2 no M5a; só recebe registro HTTPS, descobre endpoints públicos por UDP e
-devolve a lista de peers. O relay (M5b) usará a mesma VPS.
+O servidor de rendezvous e o relay rodam em uma VPS pequena. O rendezvous
+recebe registro HTTPS, descobre endpoints públicos por UDP e devolve a lista de
+peers; o relay encaminha os pacotes L2 já cifrados entre os membros da sala.
 
 A chave SSH da instância está em
 `~/.ssh/nuvia/ssh-key-2026-11-16.key` (modo 600) e nunca é versionada.
@@ -21,14 +21,12 @@ O servidor foi implantado como binário estático musl; `/v1/healthz` responde
 por HTTPS e o UDP 8443 responde ao hello. A chave SSH está em
 `~/.ssh/nuvia/ssh-key-2026-11-16.key` (modo 600).
 
-O **relay M5b** está ativo no mesmo UDP 8443: ele valida sala/token, atualiza o
+O **relay** está ativo no mesmo UDP 8443: ele valida sala/token, atualiza o
 endpoint do remetente e encaminha apenas o pacote interno já cifrado. Não há
-porta nova para abrir. O cliente usa `--relay` quando um dos lados está em
-CGNAT/celular; sem a flag ele tenta o caminho direto.
+porta nova para abrir. A GUI tenta o caminho direto e o relay em paralelo; o CLI
+usa `--relay` para forçar o relay ou AUTO sem a flag.
 
-Ainda falta validar o túnel entre duas redes diferentes e implementar o relay
-do M5b. Um domínio próprio é opcional; o `sslip.io` já tem certificado
-Let's Encrypt de produção.
+O túnel entre redes diferentes e o relay já foram validados.
 
 ## 1. Rede na Oracle
 
@@ -130,7 +128,10 @@ ssh -i ~/.ssh/nuvia/ssh-key-2026-11-16.key ubuntu@<IP> \
   'sudo journalctl -u caddy -f'
 ```
 
-## 6. Criar o convite
+## 6. Convite pelo CLI (legado)
+
+A GUI não usa convite: o token é derivado do nome/senha da sala. O comando
+abaixo continua disponível para compatibilidade com o CLI.
 
 No seu PC (não precisa ser na VPS):
 
@@ -176,6 +177,6 @@ sudo systemctl restart caddy
 Não remova as regras `InstanceServices` (serviço de metadata) do
 `/etc/iptables/rules.v4`.
 
-O servidor não conhece a senha da sala e não tem as chaves de tráfego. No M5a
-ele só vê IDs, chaves públicas, endpoints e o token do convite. No M5b ele
-encaminhará pacotes cifrados, sem conseguir decifrá-los.
+O servidor não conhece a senha da sala e não tem as chaves de tráfego. Ele vê
+apenas IDs, chaves públicas, endpoints e o token; quando atua como relay,
+encaminha pacotes cifrados sem conseguir decifrá-los.
