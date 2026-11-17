@@ -706,7 +706,7 @@ impl NuviaApp {
         let t = self.language.strings();
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new("NUVIA")
+                RichText::new("NUUVIA")
                     .font(theme::display(26.0))
                     .color(theme::ACCENT),
             );
@@ -1130,9 +1130,12 @@ impl NuviaApp {
 
                 ui.add_space(12.0);
                 ui.label(
-                    RichText::new(format!("nuvia {} · egui/eframe", env!("CARGO_PKG_VERSION")))
-                        .size(10.0)
-                        .color(theme::MUTED),
+                    RichText::new(format!(
+                        "Nuuvia {} · egui/eframe",
+                        env!("CARGO_PKG_VERSION")
+                    ))
+                    .size(10.0)
+                    .color(theme::MUTED),
                 );
             });
         self.show_settings = open;
@@ -1159,7 +1162,7 @@ impl NuviaApp {
             .show(ctx, |ui| {
                 ui.set_width(300.0);
                 ui.label(
-                    RichText::new("NUVIA")
+                    RichText::new("NUUVIA")
                         .font(theme::display(28.0))
                         .color(theme::ACCENT),
                 );
