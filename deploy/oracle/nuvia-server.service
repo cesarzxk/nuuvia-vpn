@@ -1,0 +1,25 @@
+[Unit]
+Description=nuvia rendezvous server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nuvia
+Group=nuvia
+ExecStart=/usr/local/bin/nuvia-server serve --config /etc/nuvia/server.toml
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
