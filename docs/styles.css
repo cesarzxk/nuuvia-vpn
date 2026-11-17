@@ -420,8 +420,38 @@ code {
   box-shadow: 0 12px 28px rgba(255, 221, 0, 0.16);
 }
 
-.footer-coffee {
-  margin-top: 18px;
+.support {
+  padding: 32px 0 clamp(70px, 9vw, 120px);
+}
+
+.support-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 44px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--card), rgba(15, 21, 31, 0.65));
+  text-align: center;
+}
+
+.support-inner .eyebrow {
+  margin-bottom: 12px;
+}
+
+.support-inner h2 {
+  margin-bottom: 10px;
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+}
+
+.support-inner p:not(.eyebrow) {
+  max-width: 520px;
+  margin: 0 auto 22px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.support-coffee {
+  margin: 0 auto;
 }
 
 .hero-points {
@@ -865,7 +895,7 @@ code {
 
 /* CTA */
 .cta-band {
-  padding: 0 0 clamp(70px, 9vw, 120px);
+  padding: 0 0 28px;
 }
 
 .cta-inner {
