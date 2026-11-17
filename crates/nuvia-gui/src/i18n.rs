@@ -288,9 +288,9 @@ pub static EN: Strings = Strings {
     about_platform: "Rust + egui · Linux and Windows",
     close: "CLOSE",
 
-    tray_open: "Open nuvia",
+    tray_open: "Open Nuuvia",
     tray_quit: "Quit",
-    tray_tooltip: "nuvia VPN",
+    tray_tooltip: "Nuuvia VPN",
 
     backend_already_connected: "network {name} is already connected",
     backend_empty_password: "the network password is empty",
@@ -402,9 +402,9 @@ pub static ES: Strings = Strings {
     about_platform: "Rust + egui · Linux y Windows",
     close: "CERRAR",
 
-    tray_open: "Abrir nuvia",
+    tray_open: "Abrir Nuuvia",
     tray_quit: "Salir",
-    tray_tooltip: "nuvia VPN",
+    tray_tooltip: "Nuuvia VPN",
 
     backend_already_connected: "la red {name} ya está conectada",
     backend_empty_password: "la contraseña de la red está vacía",
@@ -516,9 +516,9 @@ pub static PT: Strings = Strings {
     about_platform: "Rust + egui · Linux e Windows",
     close: "FECHAR",
 
-    tray_open: "Abrir nuvia",
+    tray_open: "Abrir Nuuvia",
     tray_quit: "Sair",
-    tray_tooltip: "nuvia VPN",
+    tray_tooltip: "Nuuvia VPN",
 
     backend_already_connected: "a rede {name} já está conectada",
     backend_empty_password: "a senha da rede está vazia",
