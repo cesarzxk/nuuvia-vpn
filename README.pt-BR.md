@@ -6,7 +6,7 @@ LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
 
-> Status: **1.0.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
+> Status: **1.1.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
 > com caminho direto ou relay, status por participante, lista de redes
@@ -19,9 +19,10 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/create-network.png" width="30%" alt="Criar ou entrar em uma rede">
-  <img src="docs/screenshots/relay.png" width="30%" alt="Caminho relay e participante offline">
-  <img src="docs/screenshots/about.png" width="30%" alt="Sobre o nuvia 1.0.0">
+  <img src="docs/screenshots/create-network.png" width="24%" alt="Criar ou entrar em uma rede">
+  <img src="docs/screenshots/relay.png" width="24%" alt="Caminho relay, latência e participante offline">
+  <img src="docs/screenshots/settings.png" width="24%" alt="Ajustes e seletor de idioma">
+  <img src="docs/screenshots/about.png" width="24%" alt="Sobre o nuvia 1.1.0">
 </p>
 
 ## O que já funciona
@@ -59,7 +60,11 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
   - **mesh de 2 a 8 participantes por sala**, tentando caminho direto e
     relay em paralelo; servidor fixo na compilação;
   - **status por participante**: verde = direto, roxo = relay, cinza =
-    offline/aguardando.
+    offline/aguardando;
+  - passe o mouse sobre um participante para ver a **bolinha de qualidade e o
+    ping medido**;
+  - clique com o botão direito em um participante para **copiar o IP**;
+  - **interface em inglês, espanhol e português**, selecionável nos Ajustes.
 - Keepalive, detecção de sessão morta e reconexão automática.
 - Teste de integração com dois network namespaces, sem sudo quando user
   namespaces estão disponíveis.
@@ -120,8 +125,9 @@ Minecraft vê as LANs de todas as salas ativas; as salas não ficam isoladas
 localmente. Clique com o **botão direito** no cartão: **DESATIVAR** desconecta
 aquela sala; **SAIR** remove da lista.
 
-O menu **AJUDA** contém **Ajustes** (identidade, servidor fixo e privilégios),
-**Sobre** e **Sair**.
+O menu **AJUDA** contém **Ajustes** (identidade, servidor fixo, privilégios e
+idioma), **Sobre** e **Sair**. A interface pode ser trocada entre inglês,
+espanhol e português em **Ajustes → Idioma**.
 
 As redes são salvas em `rooms.toml` (no mesmo diretório da identidade) e
 restauradas ao abrir, sem conectar automaticamente. Ao fechar a janela, o nuvia
@@ -285,10 +291,10 @@ Validado em um Windows 11 real com Minecraft Java 1.8.5.
 
 Gera:
 
-- `dist/nuvia_1.0.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.1.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
   `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.0.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
+- `dist/nuvia-1.1.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
   para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
