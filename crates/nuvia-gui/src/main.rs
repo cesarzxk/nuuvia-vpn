@@ -34,14 +34,14 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([380.0, 540.0])
             .with_min_inner_size([360.0, 480.0])
-            .with_title("NUVIA VPN")
+            .with_title("Nuuvia VPN")
             .with_app_id("nuvia")
             .with_icon(icon()),
         ..Default::default()
     };
 
     let result = eframe::run_native(
-        "NUVIA",
+        "Nuuvia",
         options,
         Box::new(|cc| {
             theme::install(&cc.egui_ctx);
