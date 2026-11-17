@@ -17,8 +17,9 @@ Baixe `nuvia-setup-x86_64.exe` e execute como administrador. O instalador:
 - cria atalhos na área de trabalho e no menu Iniciar;
 - registra o desinstalador em **Aplicativos e recursos**.
 
-O Windows vai pedir UAC. Se o driver já estiver instalado, o instalador avisa e
-continua; nesse caso rode `install-tap.ps1` manualmente.
+O Windows vai pedir UAC. Se o driver já estiver instalado, o instalador segue
+sem reinstalar; se o adaptador `nuvia0` não existir, o próprio app tenta
+reparar/renomear o TAP ao conectar.
 
 ## GUI
 
@@ -44,7 +45,8 @@ O menu **AJUDA** tem **Ajustes** (identidade, servidor fixo e privilégios) e
 **Sobre**.
 
 A GUI usa **mesh** para 2–8 participantes, tentando direto e relay em
-paralelo. O CLI ainda tem o caminho AUTO 1:1. A GUI usa o mesmo
+paralelo. Cada participante na lista expandida mostra um ponto: verde = direto,
+roxo = relay, cinza = offline/aguardando. A GUI usa o mesmo
 `%APPDATA%\nuvia\identity.toml` do CLI. As redes
 ficam salvas em `%APPDATA%\nuvia\rooms.toml`. Fechar a janela esconde para a
 bandeja; clique no ícone para abrir ou use **Sair** no menu da bandeja/AJUDA.
@@ -61,8 +63,8 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 O zip inclui o driver `9.27.0` em `driver\`; sem `-DriverDir`, o script baixa o
 release oficial do OpenVPN. A instalação usa
-`devcon.exe install OemVista.inf TAP0901`. O nuvia cria os adaptadores
-`nuvia0`, `nuvia1`, … sob demanda; não é preciso criar nada à mão.
+`devcon.exe install OemVista.inf TAP0901`. O nuvia reutiliza/cria um único
+adaptador `nuvia0` sob demanda; não é preciso criar nada à mão.
 
 ## 2. Identidade
 
@@ -104,7 +106,7 @@ maior com `.2`, dentro de `10.240.<octeto-da-sala>.0/24`.
 ```powershell
 .\nuvia.exe up `
   --room casa --password 'troque-esta-senha' `
-  --tap-name nuvia-vpn0 --ip 10.240.0.2/24 `
+  --tap-name nuvia0 --ip 10.240.0.2/24 `
   --bind 0.0.0.0:42424 `
   --peer <PUB_A>@192.168.1.10:42424
 ```
@@ -146,12 +148,12 @@ desconecte a rede ativa ou ative outra.
 - Rode o nuvia como Administrador; criar adaptador e mexer em rotas/firewall
   exige privilégio.
 - O Windows pode mostrar um alerta de SmartScreen porque o binário ainda não
-  tem assinatura de código. Isso entra no M4.
+  tem assinatura de código; isso fica para uma versão futura.
 - O perfil do adaptador precisa ficar **Private**. O `doctor` e os logs mostram
   se o PowerShell não conseguiu ajustar.
 - O firewall do jogo deve permitir rede **Private**. O TAP é marcado assim.
-- Com várias redes, cada uma tem seu próprio TAP. O nome do adaptador e a regra
-  de firewall são independentes; fechar uma rede não derruba as outras.
+- Todas as redes usam o mesmo TAP `nuvia0` e a mesma regra de firewall; fechar
+  uma rede não derruba as outras.
 
 ## Diagnóstico
 
@@ -195,7 +197,7 @@ Find-NetRoute -RemoteIPAddress 224.0.2.60 |
   Select-Object IPAddress,InterfaceAlias,RouteMetric
 ```
 
-Precisa aparecer o TAP da rede ativa (`nuvia0`, `nuvia1`, …). Se aparecer
+Precisa aparecer o TAP compartilhado (`nuvia0`). Se aparecer
 `Ethernet` ou outro adaptador virtual:
 
 ```powershell
