@@ -402,6 +402,28 @@ code {
   background: var(--card-2);
 }
 
+.coffee-badge {
+  display: inline-flex;
+  border-radius: 10px;
+  line-height: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.coffee-badge img {
+  width: 220px;
+  height: auto;
+  border-radius: 10px;
+}
+
+.coffee-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(255, 221, 0, 0.16);
+}
+
+.footer-coffee {
+  margin-top: 18px;
+}
+
 .hero-points {
   display: flex;
   flex-wrap: wrap;
