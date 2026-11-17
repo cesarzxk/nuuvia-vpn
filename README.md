@@ -1,4 +1,4 @@
-# nuvia
+# Nuuvia
 
 **English** | [Português](README.pt-BR.md)
 
@@ -6,11 +6,15 @@ Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
 
-> Status: **1.1.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> Status: **1.2.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
 > persisted room list, and close-to-tray.
+
+> The product name is **Nuuvia**. Internal identifiers, binaries (`nuvia`,
+> `nuvia-gui`), packages, configuration paths, and TAP names keep the original
+> `nuvia` spelling for compatibility with existing installs.
 
 ## Demo
 
@@ -22,7 +26,7 @@ including **broadcast** and **multicast** discovery.
   <img src="docs/screenshots/create-network.png" width="24%" alt="Create or join a network">
   <img src="docs/screenshots/relay.png" width="24%" alt="Relay path, latency and offline participant">
   <img src="docs/screenshots/settings.png" width="24%" alt="Settings and language selector">
-  <img src="docs/screenshots/about.png" width="24%" alt="About nuvia 1.1.0">
+  <img src="docs/screenshots/about.png" width="24%" alt="About Nuuvia 1.2.0">
 </p>
 
 ## What already works
@@ -93,7 +97,7 @@ Games announce rooms with UDP broadcast (`255.255.255.255`) or multicast
 (Minecraft Java uses `224.0.2.60:4445`). Multicast usually leaves with **TTL
 1**, and an L3 VPN (WireGuard/Tailscale) routes and drops it. Commercial L2
 VPNs work because they deliver a single broadcast domain. That is exactly what
-nuvia does: a virtual Ethernet switch over encrypted UDP.
+Nuuvia does: a virtual Ethernet switch over encrypted UDP.
 
 ## GUI (Linux and Windows)
 
@@ -111,7 +115,7 @@ name and password. The GUI supports up to 8 participants per room and several
 rooms at once, all on the same local TAP/IP. To play:
 
 1. Keep the room connected.
-2. Open the game **after** nuvia and use **Open to LAN**.
+2. Open the game **after** Nuuvia and use **Open to LAN**.
 3. On the other PC, the world should appear in the LAN list.
 
 Discovery routes are installed **once on the shared TAP** and cover every
@@ -131,7 +135,7 @@ English, Español, and Português in **Ajustes → Idioma**.
 
 Rooms are saved in `rooms.toml` (in the same directory as the identity) and
 restored on startup without connecting automatically. When you close the
-window, nuvia keeps running in the **system tray**; click the icon to restore
+window, Nuuvia keeps running in the **system tray**; click the icon to restore
 the window or use **Sair** from the tray/AJUDA menu. If the environment has no
 tray (StatusNotifier), closing exits normally.
 
@@ -219,7 +223,7 @@ sudo ./target/release/nuvia --identity "$HOME/.config/nuvia/identity.toml" up \
 On machine B (physical IP `192.168.1.20`), change the IP to `10.240.0.2/24`
 and the peer to `<PUB_A>@192.168.1.10:42424`.
 
-> `sudo` usually changes `HOME` to `/root`. Without `--identity`, nuvia would
+> `sudo` usually changes `HOME` to `/root`. Without `--identity`, Nuuvia would
 > create a new identity in `/root/.config/nuvia` and the public key would not
 > match the other side.
 
@@ -276,7 +280,7 @@ not reinstall the driver when it is already present.
 
 ### What Windows configures automatically
 
-nuvia creates **one `nuvia0` adapter**, configures IP/MTU, installs the
+Nuuvia creates **one `nuvia0` adapter**, configures IP/MTU, installs the
 discovery routes, sets the **interface metric to 1**, marks the TAP as a
 **Private** network, and creates the `nuvia-nuvia0` firewall rule. Step by step
 in [`deploy/windows/README.md`](deploy/windows/README.md) (in Portuguese).
@@ -291,10 +295,10 @@ Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
 
 Generates:
 
-- `dist/nuvia_1.1.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.2.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
   launcher uses `pkexec` to ask for the password and create the TAP/routes;
-- `dist/nuvia-1.1.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
+- `dist/nuvia-1.2.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
   an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
