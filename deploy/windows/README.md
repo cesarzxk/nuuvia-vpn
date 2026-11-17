@@ -2,7 +2,7 @@
 
 O cliente Windows usa o driver **tap-windows6** (o mesmo driver do OpenVPN)
 para criar uma Ethernet virtual. O driver é assinado e funciona no Windows 10 e
-11. Ele é GPLv2 e é distribuído junto no instalador, não é linkado ao nuvia.
+11. Ele é GPLv2 e é distribuído junto no instalador, não é linkado ao Nuuvia.
 
 A GUI usa o renderer **wgpu** (DirectX 12, com WARP de fallback) em vez de
 OpenGL, para funcionar também em máquinas sem OpenGL 2.0.
@@ -31,7 +31,7 @@ TAP, porta, papel nem IP.
 2. No primeiro PC: menu **REDE** → **CRIAR REDE**.
 3. No segundo PC: menu **REDE** → **ENTRAR EM REDE** com o **mesmo nome** e a
    **mesma senha**.
-4. Abra o jogo **depois** do nuvia e use **Open to LAN**.
+4. Abra o jogo **depois** do Nuuvia e use **Open to LAN**.
 
 O menu **REDE** também permite adicionar outras redes. Todas usam o **mesmo
 adaptador `nuvia0` e o mesmo IP `10.240.x.y/16`**; cada sala tem sua porta UDP,
@@ -63,7 +63,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 O zip inclui o driver `9.27.0` em `driver\`; sem `-DriverDir`, o script baixa o
 release oficial do OpenVPN. A instalação usa
-`devcon.exe install OemVista.inf TAP0901`. O nuvia reutiliza/cria um único
+`devcon.exe install OemVista.inf TAP0901`. O Nuuvia reutiliza/cria um único
 adaptador `nuvia0` sob demanda; não é preciso criar nada à mão.
 
 ## 2. Identidade
@@ -143,9 +143,9 @@ desconecte a rede ativa ou ative outra.
 
 ## Regras importantes
 
-- **Abra o jogo depois do nuvia.** Se o jogo já estava aberto, reinicie para ele
+- **Abra o jogo depois do Nuuvia.** Se o jogo já estava aberto, reinicie para ele
   fazer o join multicast no adaptador certo.
-- Rode o nuvia como Administrador; criar adaptador e mexer em rotas/firewall
+- Rode o Nuuvia como Administrador; criar adaptador e mexer em rotas/firewall
   exige privilégio.
 - O Windows pode mostrar um alerta de SmartScreen porque o binário ainda não
   tem assinatura de código; isso fica para uma versão futura.
