@@ -13,6 +13,7 @@ use nuvia_core::Identity;
 use serde::{Deserialize, Serialize};
 
 use crate::backend::{self, Backend, Event, PeerView, Phase, RoomConfig};
+use crate::i18n::{render, Lang, Strings};
 use crate::theme;
 use crate::tray::Tray;
 
@@ -33,15 +34,16 @@ enum RoomState {
 }
 
 impl RoomState {
-    fn pill(self) -> (&'static str, Color32) {
+    fn pill(self, lang: Lang) -> (&'static str, Color32) {
+        let t = lang.strings();
         match self {
-            RoomState::Starting => ("INICIANDO", theme::AMBER),
-            RoomState::Searching => ("BUSCANDO", theme::AMBER),
-            RoomState::Connecting => ("CONECTANDO", theme::ACCENT),
-            RoomState::Connected { relay: true } => ("RELAY", theme::PURPLE),
-            RoomState::Connected { relay: false } => ("DIRETO", theme::ACCENT),
-            RoomState::Stopped => ("OFF", theme::MUTED),
-            RoomState::Error => ("ERRO", theme::RED),
+            RoomState::Starting => (t.state_starting, theme::AMBER),
+            RoomState::Searching => (t.state_searching, theme::AMBER),
+            RoomState::Connecting => (t.state_connecting, theme::ACCENT),
+            RoomState::Connected { relay: true } => (t.state_relay, theme::PURPLE),
+            RoomState::Connected { relay: false } => (t.state_direct, theme::ACCENT),
+            RoomState::Stopped => (t.state_off, theme::MUTED),
+            RoomState::Error => (t.state_error, theme::RED),
         }
     }
 
@@ -66,6 +68,7 @@ struct RoomEntry {
     own_ip: Option<String>,
     participants: Vec<PeerView>,
     peer_paths: HashMap<[u8; nuvia_protocol::PEER_TAG_LEN], (bool, Instant)>,
+    peer_pings: HashMap<[u8; nuvia_protocol::PEER_TAG_LEN], (u32, Instant)>,
     log: VecDeque<String>,
 }
 
@@ -73,6 +76,8 @@ struct RoomEntry {
 struct StoredRooms {
     #[serde(default)]
     rooms: Vec<StoredRoom>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    language: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,6 +90,7 @@ enum Action {
     ToggleExpand(usize),
     Disconnect(usize),
     Leave(usize),
+    CopiedIp,
 }
 
 pub struct NuviaApp {
@@ -104,6 +110,7 @@ pub struct NuviaApp {
     identity_public: Option<String>,
     identity_name: String,
     rooms_path: PathBuf,
+    language: Lang,
     elevated: bool,
     show_settings: bool,
     show_about: bool,
@@ -120,6 +127,8 @@ pub struct NuviaApp {
 
 impl NuviaApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let lang_override = Lang::from_env();
+        let mut language = lang_override.unwrap_or_else(Lang::from_locale);
         let identity_path = backend::user_identity_path();
         let identity = Identity::load(&identity_path).ok();
         let identity_public = identity.as_ref().map(|identity| identity.public_key_hex());
@@ -129,7 +138,7 @@ impl NuviaApp {
             .or_else(|| std::env::var("USER").ok())
             .or_else(|| std::env::var("USERNAME").ok())
             .filter(|name| !name.trim().is_empty())
-            .unwrap_or_else(|| "usuário".into());
+            .unwrap_or_else(|| language.strings().user_fallback.into());
 
         let rooms_path = identity_path.with_file_name("rooms.toml");
         let mut backend = Backend::new().expect("tokio runtime");
@@ -137,6 +146,11 @@ impl NuviaApp {
         if let Ok(text) = std::fs::read_to_string(&rooms_path) {
             match toml::from_str::<StoredRooms>(&text) {
                 Ok(stored) => {
+                    if lang_override.is_none() {
+                        if let Some(code) = stored.language.as_deref() {
+                            language = Lang::from_code(code).unwrap_or(language);
+                        }
+                    }
                     for saved in stored.rooms {
                         let name = saved.name.trim().to_string();
                         if name.is_empty()
@@ -155,6 +169,7 @@ impl NuviaApp {
                             own_ip: None,
                             participants: Vec::new(),
                             peer_paths: HashMap::new(),
+                            peer_pings: HashMap::new(),
                             log: VecDeque::new(),
                         });
                     }
@@ -167,7 +182,7 @@ impl NuviaApp {
 
         let selected = if rooms.is_empty() { None } else { Some(0) };
         let quitting = Arc::new(AtomicBool::new(false));
-        let tray = Tray::spawn(cc.egui_ctx.clone(), quitting.clone());
+        let tray = Tray::spawn(cc.egui_ctx.clone(), quitting.clone(), language);
 
         Self {
             backend,
@@ -184,6 +199,7 @@ impl NuviaApp {
             identity_public,
             identity_name,
             rooms_path,
+            language,
             elevated: backend::is_elevated(),
             show_settings: false,
             show_about: false,
@@ -206,6 +222,7 @@ impl NuviaApp {
                     password: room.password.clone(),
                 })
                 .collect(),
+            language: Some(self.language.code().to_string()),
         };
         let Ok(text) = toml::to_string_pretty(&stored) else {
             return;
@@ -247,19 +264,20 @@ impl NuviaApp {
 
     fn join(&mut self) -> bool {
         self.error = None;
+        let t = self.language.strings();
         let name = self.new_name.trim().to_string();
         let password = self.new_password.clone();
 
         if name.is_empty() {
-            self.error = Some("Digite o nome da rede.".into());
+            self.error = Some(t.err_enter_room_name.into());
             return false;
         }
         if password.is_empty() {
-            self.error = Some("Digite a senha da rede.".into());
+            self.error = Some(t.err_enter_password.into());
             return false;
         }
         if self.rooms.iter().any(|room| room.name == name) {
-            self.error = Some("Essa rede já está na lista.".into());
+            self.error = Some(t.err_room_exists.into());
             return false;
         }
 
@@ -270,12 +288,13 @@ impl NuviaApp {
             tap_name: tap_name.clone(),
             bind_port,
             identity_path: self.identity_path.clone(),
+            lang: self.language,
         };
 
         match self.backend.join(config) {
             Ok(()) => {
                 let mut log = VecDeque::new();
-                log.push_back("Entrando na rede...".to_string());
+                log.push_back(t.log_joining.to_string());
                 self.rooms.insert(
                     0,
                     RoomEntry {
@@ -287,13 +306,14 @@ impl NuviaApp {
                         own_ip: None,
                         participants: Vec::new(),
                         peer_paths: HashMap::new(),
+                        peer_pings: HashMap::new(),
                         log,
                     },
                 );
                 self.selected = Some(0);
                 self.new_password.clear();
                 self.new_name.clear();
-                self.toast("Rede adicionada.");
+                self.toast(t.toast_room_added);
                 self.save_rooms();
                 true
             }
@@ -309,6 +329,7 @@ impl NuviaApp {
             return;
         }
         let room = self.rooms.remove(index);
+        let t = self.language.strings();
         self.backend.leave(&room.name);
         if self.expanded_room.as_deref() == Some(room.name.as_str()) {
             self.expanded_room = None;
@@ -322,7 +343,7 @@ impl NuviaApp {
         } else {
             Some(index.min(self.rooms.len() - 1))
         };
-        self.toast(format!("Rede {} removida.", room.name));
+        self.toast(render(t.toast_room_removed, &[("name", &room.name)]));
         self.save_rooms();
         if was_active {
             self.activate_next_connected();
@@ -334,6 +355,7 @@ impl NuviaApp {
             return;
         };
         let name = entry.name.clone();
+        let t = self.language.strings();
         self.backend.leave(&name);
         let was_active = self.active_room.as_deref() == Some(name.as_str());
         if was_active {
@@ -344,12 +366,13 @@ impl NuviaApp {
             entry.own_ip = None;
             entry.participants.clear();
             entry.peer_paths.clear();
-            entry.log.push_back("Desconectado.".into());
+            entry.peer_pings.clear();
+            entry.log.push_back(t.log_disconnected.into());
             while entry.log.len() > 40 {
                 entry.log.pop_front();
             }
         }
-        self.toast(format!("Rede {name} desconectada."));
+        self.toast(render(t.toast_room_disconnected, &[("name", &name)]));
         if was_active {
             self.activate_next_connected();
         }
@@ -377,6 +400,7 @@ impl NuviaApp {
                 room.bind_port,
             )
         };
+        let t = self.language.strings();
         self.backend.leave(&name);
         if self.active_room.as_deref() == Some(name.as_str()) {
             self.active_room = None;
@@ -387,6 +411,7 @@ impl NuviaApp {
             tap_name,
             bind_port,
             identity_path: self.identity_path.clone(),
+            lang: self.language,
         };
         match self.backend.join(config) {
             Ok(()) => {
@@ -395,9 +420,10 @@ impl NuviaApp {
                 room.own_ip = None;
                 room.participants.clear();
                 room.peer_paths.clear();
+                room.peer_pings.clear();
                 room.log.clear();
-                room.log.push_back("Reconectando...".into());
-                self.toast("Reconectando.");
+                room.log.push_back(t.log_reconnecting.into());
+                self.toast(t.toast_reconnecting);
             }
             Err(error) => {
                 self.error = Some(format!("{error:#}"));
@@ -409,14 +435,14 @@ impl NuviaApp {
         if index >= self.rooms.len() {
             return;
         }
+        let t = self.language.strings();
         let room = &self.rooms[index];
         if !room.state.connected() {
-            self.toast("Conecte a rede antes de ativá-la para jogos.");
+            self.toast(t.toast_connect_before_activate);
             return;
         }
         if !self.elevated {
-            self.error =
-                Some("Execute o nuvia como administrador para instalar as rotas de jogos.".into());
+            self.error = Some(t.err_need_admin_routes.into());
             return;
         }
 
@@ -427,15 +453,13 @@ impl NuviaApp {
         // once per app session, not every time a room is toggled.
         if self.discovery.is_none() {
             self.discovery = Some(DiscoveryRoutes::install(&tap));
-            self.log_for(
-                &name,
-                "Rotas de descoberta instaladas no TAP compartilhado.",
-            );
-            self.toast("Descoberta de jogos ativa no TAP compartilhado.");
+            self.log_for(&name, t.log_routes_installed);
+            self.toast(t.toast_discovery_active);
         }
     }
 
     fn poll_backend(&mut self, ctx: &Context) {
+        let t = self.language.strings();
         let events = self.backend.poll();
         for event in events {
             match event {
@@ -446,9 +470,9 @@ impl NuviaApp {
                         Phase::Connecting => RoomState::Connecting,
                     };
                     let text = match phase {
-                        Phase::Starting => "Preparando identidade e socket.",
-                        Phase::Searching => "Entrando na sala.",
-                        Phase::Connecting => "Preparando o TAP e o relay.",
+                        Phase::Starting => t.phase_starting,
+                        Phase::Searching => t.phase_searching,
+                        Phase::Connecting => t.phase_connecting,
                     };
                     if let Some(entry) = self.rooms.iter_mut().find(|entry| entry.name == room) {
                         entry.state = state;
@@ -468,6 +492,9 @@ impl NuviaApp {
                         entry
                             .peer_paths
                             .retain(|tag, _| peers.iter().any(|peer| peer.tag == *tag));
+                        entry
+                            .peer_pings
+                            .retain(|tag, _| peers.iter().any(|peer| peer.tag == *tag));
                         entry.participants = peers;
                         refresh_room_summary(entry);
                     }
@@ -476,6 +503,11 @@ impl NuviaApp {
                     if let Some(entry) = self.rooms.iter_mut().find(|entry| entry.name == room) {
                         entry.peer_paths.insert(tag, (direct, Instant::now()));
                         refresh_room_summary(entry);
+                    }
+                }
+                Event::PeerPing { room, tag, ms } => {
+                    if let Some(entry) = self.rooms.iter_mut().find(|entry| entry.name == room) {
+                        entry.peer_pings.insert(tag, (ms, Instant::now()));
                     }
                 }
                 Event::Connected { room, relay } => {
@@ -489,9 +521,9 @@ impl NuviaApp {
                     {
                         entry.state = RoomState::Connected { relay };
                         entry.log.push_back(if relay {
-                            "Conectado via relay.".into()
+                            t.log_connected_relay.into()
                         } else {
-                            "Conectado direto.".into()
+                            t.log_connected_direct.into()
                         });
                         refresh_room_summary(entry);
                         if no_active {
@@ -509,7 +541,9 @@ impl NuviaApp {
                     }
                     if let Some(entry) = self.rooms.iter_mut().find(|entry| entry.name == room) {
                         entry.state = RoomState::Error;
-                        entry.log.push_back(format!("ERRO: {message}"));
+                        entry
+                            .log
+                            .push_back(format!("{}: {message}", t.log_error_prefix));
                         self.error = Some(format!("{}: {message}", entry.name));
                     }
                 }
@@ -521,7 +555,7 @@ impl NuviaApp {
                     if let Some(entry) = self.rooms.iter_mut().find(|entry| entry.name == room) {
                         if entry.state != RoomState::Error {
                             entry.state = RoomState::Stopped;
-                            entry.log.push_back("Sessão encerrada.".into());
+                            entry.log.push_back(t.log_session_ended.into());
                         }
                     }
                 }
@@ -555,11 +589,12 @@ impl NuviaApp {
     }
 
     fn status_bar(&mut self, ui: &mut Ui) {
+        let t = self.language.strings();
         let target = self.bar_target();
         let (ip, state_label, state_color, connected, busy) = match target {
             Some(index) => {
                 let room = &self.rooms[index];
-                let (label, color) = room.state.pill();
+                let (label, color) = room.state.pill(self.language);
                 (
                     room.own_ip.clone().unwrap_or_else(|| "—".into()),
                     label,
@@ -568,7 +603,13 @@ impl NuviaApp {
                     room.state.busy(),
                 )
             }
-            None => ("—".to_string(), "SEM REDE", theme::MUTED, false, false),
+            None => (
+                "—".to_string(),
+                t.status_no_network,
+                theme::MUTED,
+                false,
+                false,
+            ),
         };
 
         let mut toggle = false;
@@ -618,11 +659,11 @@ impl NuviaApp {
                 toggle = true;
             }
             let _ = response.on_hover_text(if connected {
-                "Desconectar esta rede"
+                t.toggle_disconnect
             } else if busy {
-                "Cancelar a conexão"
+                t.toggle_cancel
             } else {
-                "Conectar esta rede"
+                t.toggle_connect
             });
 
             ui.add_space(8.0);
@@ -662,6 +703,7 @@ impl NuviaApp {
     }
 
     fn header(&mut self, ui: &mut Ui) {
+        let t = self.language.strings();
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new("NUVIA")
@@ -677,10 +719,12 @@ impl NuviaApp {
             if ui.available_width() > 410.0 {
                 let connected = self.rooms.iter().filter(|r| r.state.connected()).count();
                 ui.label(
-                    RichText::new(format!(
-                        "{} rede(s) · {} conectada(s)",
-                        self.rooms.len(),
-                        connected
+                    RichText::new(render(
+                        t.rooms_summary,
+                        &[
+                            ("rooms", &self.rooms.len().to_string()),
+                            ("connected", &connected.to_string()),
+                        ],
                     ))
                     .size(11.0)
                     .color(theme::MUTED),
@@ -688,21 +732,21 @@ impl NuviaApp {
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.menu_button(
-                    RichText::new("AJUDA")
+                    RichText::new(t.menu_help)
                         .font(theme::semibold(12.0))
                         .color(theme::MUTED),
                     |ui| {
                         ui.set_min_width(150.0);
-                        if ui.button("AJUSTES").clicked() {
+                        if ui.button(t.menu_settings).clicked() {
                             self.show_settings = true;
                             ui.close_menu();
                         }
-                        if ui.button("SOBRE").clicked() {
+                        if ui.button(t.menu_about).clicked() {
                             self.show_about = true;
                             ui.close_menu();
                         }
                         ui.separator();
-                        if ui.button("SAIR").clicked() {
+                        if ui.button(t.menu_quit).clicked() {
                             self.save_rooms();
                             self.quitting.store(true, Ordering::SeqCst);
                             std::process::exit(0);
@@ -710,35 +754,36 @@ impl NuviaApp {
                     },
                 );
                 ui.menu_button(
-                    RichText::new("REDE")
+                    RichText::new(t.menu_network)
                         .font(theme::semibold(12.0))
                         .color(theme::ACCENT),
                     |ui| {
                         ui.set_min_width(168.0);
-                        if ui.button("CRIAR REDE").clicked() {
+                        if ui.button(t.menu_create).clicked() {
                             self.open_add(AddMode::Create);
                             ui.close_menu();
                         }
-                        if ui.button("ENTRAR EM REDE").clicked() {
+                        if ui.button(t.menu_join).clicked() {
                             self.open_add(AddMode::Join);
                             ui.close_menu();
                         }
                     },
                 )
                 .response
-                .on_hover_text("Criar ou entrar em uma rede");
+                .on_hover_text(t.tooltip_network_menu);
                 if !self.elevated {
-                    theme::badge(ui, "MODO LIMITADO", theme::AMBER);
+                    theme::badge(ui, t.badge_limited, theme::AMBER);
                 }
             });
         });
     }
 
     fn room_card(&self, ui: &mut Ui, index: usize, actions: &mut Vec<Action>) {
+        let t = self.language.strings();
         let room = &self.rooms[index];
         let selected = self.selected == Some(index);
         let expanded = self.expanded_room.as_deref() == Some(room.name.as_str());
-        let (state_label, state_color) = room.state.pill();
+        let (state_label, state_color) = room.state.pill(self.language);
 
         let border = if selected {
             theme::ACCENT_SOFT
@@ -793,13 +838,13 @@ impl NuviaApp {
             ui.set_min_width(132.0);
             let can_disconnect = room.state.connected() || room.state.busy();
             if ui
-                .add_enabled(can_disconnect, egui::Button::new("DESATIVAR"))
+                .add_enabled(can_disconnect, egui::Button::new(t.context_disable))
                 .clicked()
             {
                 actions.push(Action::Disconnect(index));
                 ui.close_menu();
             }
-            if ui.button("SAIR").clicked() {
+            if ui.button(t.context_leave).clicked() {
                 actions.push(Action::Leave(index));
                 ui.close_menu();
             }
@@ -815,16 +860,19 @@ impl NuviaApp {
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(
-                        RichText::new("PARTICIPANTES")
+                        RichText::new(t.participants)
                             .font(theme::semibold(8.5))
                             .color(theme::MUTED),
                     );
-                    participant_row(
+                    let mut copied = false;
+                    copied |= participant_row(
                         ui,
                         &self.identity_name,
                         room.own_ip.as_deref(),
                         true,
                         state_color,
+                        None,
+                        t,
                     );
                     for peer in &room.participants {
                         let color = match peer_path(room, &peer.tag) {
@@ -832,11 +880,22 @@ impl NuviaApp {
                             Some(false) => theme::PURPLE,
                             None => theme::MUTED,
                         };
-                        participant_row(ui, &peer.name, Some(&peer.ip), false, color);
+                        copied |= participant_row(
+                            ui,
+                            &peer.name,
+                            Some(&peer.ip),
+                            false,
+                            color,
+                            peer_ping(room, &peer.tag),
+                            t,
+                        );
+                    }
+                    if copied {
+                        actions.push(Action::CopiedIp);
                     }
                     if room.participants.is_empty() && room.state.busy() {
                         ui.label(
-                            RichText::new("Aguardando outros participantes...")
+                            RichText::new(t.waiting_participants)
                                 .size(10.0)
                                 .color(theme::MUTED),
                         );
@@ -845,9 +904,9 @@ impl NuviaApp {
                         ui.add_space(2.0);
                         ui.horizontal(|ui| {
                             for (color, label) in [
-                                (theme::ACCENT, "direto"),
-                                (theme::PURPLE, "relay"),
-                                (theme::MUTED, "offline"),
+                                (theme::ACCENT, t.legend_direct),
+                                (theme::PURPLE, t.legend_relay),
+                                (theme::MUTED, t.legend_offline),
                             ] {
                                 ui.label(RichText::new("●").size(8.0).color(color));
                                 ui.label(RichText::new(label).size(9.0).color(theme::MUTED));
@@ -862,21 +921,20 @@ impl NuviaApp {
     }
 
     fn rooms_list(&self, ui: &mut Ui, actions: &mut Vec<Action>) {
+        let t = self.language.strings();
         if self.rooms.is_empty() {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.label(
-                    RichText::new("NENHUMA REDE")
+                    RichText::new(t.no_networks)
                         .font(theme::semibold(14.0))
                         .color(theme::MUTED),
                 );
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new(
-                        "Use o menu REDE no topo para criar ou entrar. Cada rede recebe um IP virtual próprio.",
-                    )
-                    .size(12.0)
-                    .color(theme::MUTED),
+                    RichText::new(t.no_networks_hint)
+                        .size(12.0)
+                        .color(theme::MUTED),
                 );
             });
             return;
@@ -894,19 +952,15 @@ impl NuviaApp {
 
         let mut open = true;
         let mut close = false;
+        let t = self.language.strings();
         let (title, kicker, hint, action) = match self.add_mode {
             AddMode::Create => (
-                "Criar rede",
-                "CRIAR REDE",
-                "Crie a rede neste PC e use o mesmo nome e senha no outro para entrar.",
-                "CRIAR REDE",
+                t.create_title,
+                t.create_kicker,
+                t.create_hint,
+                t.create_action,
             ),
-            AddMode::Join => (
-                "Entrar em rede",
-                "ENTRAR EM REDE",
-                "Use o nome e a senha combinados. Se a rede ainda não existir, ela é criada agora.",
-                "ENTRAR",
-            ),
+            AddMode::Join => (t.join_title, t.join_kicker, t.join_hint, t.join_action),
         };
         egui::Window::new(title)
             .open(&mut open)
@@ -931,14 +985,14 @@ impl NuviaApp {
                 ui.add_space(10.0);
 
                 ui.label(
-                    RichText::new("NOME DA REDE")
+                    RichText::new(t.field_room_name)
                         .font(theme::semibold(9.0))
                         .color(theme::MUTED),
                 );
                 let name = ui.add_sized(
                     [320.0, 36.0],
                     TextEdit::singleline(&mut self.new_name)
-                        .hint_text("ex.: casa")
+                        .hint_text(t.hint_room_name)
                         .text_color(theme::TEXT)
                         .background_color(theme::CARD_2)
                         .vertical_align(Align::Center),
@@ -950,7 +1004,7 @@ impl NuviaApp {
 
                 ui.add_space(2.0);
                 ui.label(
-                    RichText::new("SENHA")
+                    RichText::new(t.field_password)
                         .font(theme::semibold(9.0))
                         .color(theme::MUTED),
                 );
@@ -958,14 +1012,14 @@ impl NuviaApp {
                     [320.0, 36.0],
                     TextEdit::singleline(&mut self.new_password)
                         .password(!self.show_password)
-                        .hint_text("senha combinada entre os PCs")
+                        .hint_text(t.hint_password)
                         .text_color(theme::TEXT)
                         .background_color(theme::CARD_2)
                         .vertical_align(Align::Center),
                 );
                 ui.checkbox(
                     &mut self.show_password,
-                    RichText::new("Mostrar senha")
+                    RichText::new(t.show_password)
                         .size(11.0)
                         .color(theme::MUTED),
                 );
@@ -997,8 +1051,9 @@ impl NuviaApp {
         if !self.show_settings {
             return;
         }
+        let t = self.language.strings();
         let mut open = self.show_settings;
-        egui::Window::new("Ajustes")
+        egui::Window::new(t.settings_title)
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -1013,7 +1068,7 @@ impl NuviaApp {
             )
             .show(ctx, |ui| {
                 ui.set_width(300.0);
-                theme::section(ui, "IDENTIDADE", "Chave X25519 usada em todas as redes.");
+                theme::section(ui, t.section_identity, t.identity_hint);
                 ui.label(
                     RichText::new(self.identity_path.display().to_string())
                         .font(FontId::new(10.0, FontFamily::Monospace))
@@ -1024,37 +1079,53 @@ impl NuviaApp {
                     .identity_public
                     .as_deref()
                     .map(short_key)
-                    .unwrap_or_else(|| "não gerada".into());
+                    .unwrap_or_else(|| t.not_generated.into());
                 theme::key_text(ui, &key);
                 ui.horizontal(|ui| {
-                    if ui.small_button("RECARREGAR").clicked() {
+                    if ui.small_button(t.reload).clicked() {
                         self.identity_public = Identity::load(&self.identity_path)
                             .ok()
                             .map(|identity| identity.public_key_hex());
                     }
                     if let Some(public) = &self.identity_public {
-                        if ui.small_button("COPIAR").clicked() {
+                        if ui.small_button(t.copy).clicked() {
                             ui.ctx().copy_text(public.clone());
-                            self.toast("Chave copiada.");
+                            self.toast(t.copied);
                         }
                     }
                 });
 
                 ui.add_space(12.0);
-                theme::section(ui, "PRIVILÉGIOS", "");
+                theme::section(ui, t.section_privileges, "");
                 if self.elevated {
-                    theme::badge(ui, "ADMINISTRADOR", theme::ACCENT);
+                    theme::badge(ui, t.administrator, theme::ACCENT);
                 } else {
-                    theme::badge(ui, "MODO LIMITADO", theme::AMBER);
-                    ui.label(
-                        RichText::new("Sem root/admin o TAP e as rotas de jogos não são criados.")
-                            .size(11.0)
-                            .color(theme::MUTED),
-                    );
+                    theme::badge(ui, t.limited_mode, theme::AMBER);
+                    ui.label(RichText::new(t.limited_hint).size(11.0).color(theme::MUTED));
                     #[cfg(unix)]
-                    if ui.button("REABRIR COMO ADMIN").clicked() {
+                    if ui.button(t.reopen_admin).clicked() {
                         relaunch_as_root();
                     }
+                }
+
+                ui.add_space(12.0);
+                theme::section(ui, t.section_language, t.language_hint);
+                let mut language = self.language;
+                theme::segmented(
+                    ui,
+                    &mut language,
+                    &[
+                        (Lang::En, Lang::En.short_label()),
+                        (Lang::Es, Lang::Es.short_label()),
+                        (Lang::Pt, Lang::Pt.short_label()),
+                    ],
+                );
+                if language != self.language {
+                    self.language = language;
+                    self.save_rooms();
+                    self.tray
+                        .set_language(ctx.clone(), self.quitting.clone(), language);
+                    self.toast(language.strings().language_changed);
                 }
 
                 ui.add_space(12.0);
@@ -1070,9 +1141,10 @@ impl NuviaApp {
         if !self.show_about {
             return;
         }
+        let t = self.language.strings();
         let mut open = self.show_about;
         let mut close = false;
-        egui::Window::new("Sobre")
+        egui::Window::new(t.about_title)
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -1092,28 +1164,24 @@ impl NuviaApp {
                         .color(theme::ACCENT),
                 );
                 ui.label(
-                    RichText::new("LAN virtual criptografada para jogos.")
+                    RichText::new(t.about_tagline)
                         .font(theme::semibold(13.0))
                         .color(theme::TEXT),
                 );
                 ui.add_space(4.0);
+                ui.label(RichText::new(t.about_stack).size(11.0).color(theme::MUTED));
                 ui.label(
-                    RichText::new("Layer 2 · Noise XX · ChaCha20-Poly1305")
-                        .size(11.0)
-                        .color(theme::MUTED),
-                );
-                ui.label(
-                    RichText::new(format!("versão {}", env!("CARGO_PKG_VERSION")))
+                    RichText::new(format!("{} {}", t.version_label, env!("CARGO_PKG_VERSION")))
                         .font(FontId::new(11.0, FontFamily::Monospace))
                         .color(theme::MUTED),
                 );
                 ui.label(
-                    RichText::new("Rust + egui · Linux e Windows")
+                    RichText::new(t.about_platform)
                         .size(11.0)
                         .color(theme::MUTED),
                 );
                 ui.add_space(8.0);
-                if ui.small_button("FECHAR").clicked() {
+                if ui.small_button(t.close).clicked() {
                     close = true;
                 }
             });
@@ -1203,6 +1271,9 @@ impl eframe::App for NuviaApp {
                                 }
                                 Action::Disconnect(index) => self.disconnect(index),
                                 Action::Leave(index) => self.leave(index),
+                                Action::CopiedIp => {
+                                    self.toast(self.language.strings().toast_ip_copied)
+                                }
                             }
                         }
                     });
@@ -1278,10 +1349,25 @@ fn chown_to_session_user(path: &std::path::Path) {
 }
 
 const PEER_STALE_AFTER: Duration = Duration::from_secs(25);
+const PEER_PING_STALE_AFTER: Duration = Duration::from_secs(8);
 
 fn peer_path(entry: &RoomEntry, tag: &[u8; nuvia_protocol::PEER_TAG_LEN]) -> Option<bool> {
     let (direct, seen) = entry.peer_paths.get(tag)?;
     (seen.elapsed() < PEER_STALE_AFTER).then_some(*direct)
+}
+
+fn peer_ping(entry: &RoomEntry, tag: &[u8; nuvia_protocol::PEER_TAG_LEN]) -> Option<u32> {
+    let (ms, seen) = entry.peer_pings.get(tag)?;
+    (seen.elapsed() < PEER_PING_STALE_AFTER).then_some(*ms)
+}
+
+fn ping_color(ping: Option<u32>) -> Color32 {
+    match ping {
+        Some(ms) if ms <= 80 => theme::ACCENT,
+        Some(ms) if ms <= 160 => theme::AMBER,
+        Some(_) => theme::RED,
+        None => theme::MUTED,
+    }
 }
 
 /// Summarizes the individual paths in the room badge: `DIRETO` only when
@@ -1308,8 +1394,16 @@ fn refresh_room_summary(entry: &mut RoomEntry) {
     }
 }
 
-fn participant_row(ui: &mut Ui, name: &str, ip: Option<&str>, is_self: bool, dot_color: Color32) {
-    ui.horizontal(|ui| {
+fn participant_row(
+    ui: &mut Ui,
+    name: &str,
+    ip: Option<&str>,
+    is_self: bool,
+    dot_color: Color32,
+    ping: Option<u32>,
+    t: &Strings,
+) -> bool {
+    let row = ui.horizontal(|ui| {
         let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(6.0), egui::Sense::hover());
         ui.painter()
             .circle_filled(dot_rect.center(), 2.5, dot_color);
@@ -1319,7 +1413,7 @@ fn participant_row(ui: &mut Ui, name: &str, ip: Option<&str>, is_self: bool, dot
                 .color(theme::TEXT),
         );
         if is_self {
-            ui.label(RichText::new("você").size(9.0).color(theme::MUTED));
+            ui.label(RichText::new(t.you).size(9.0).color(theme::MUTED));
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.label(
@@ -1329,6 +1423,51 @@ fn participant_row(ui: &mut Ui, name: &str, ip: Option<&str>, is_self: bool, dot
             );
         });
     });
+
+    let mut copied = false;
+    if let Some(ip) = ip {
+        let response = ui.interact(
+            row.response.rect,
+            ui.make_persistent_id(("participant-menu", name, ip)),
+            egui::Sense::click(),
+        );
+        response.context_menu(|ui| {
+            if ui.button(t.copy_ip).clicked() {
+                ui.ctx().copy_text(ip.to_string());
+                copied = true;
+                ui.close_menu();
+            }
+        });
+    }
+
+    if !is_self && ui.rect_contains_pointer(row.response.rect) {
+        let rect = row.response.rect;
+        let color = ping_color(ping);
+        let text = match ping {
+            Some(ms) => format!("{ms} ms"),
+            None => t.ping_measuring.to_string(),
+        };
+        let galley =
+            ui.painter()
+                .layout_no_wrap(text, FontId::new(9.5, FontFamily::Proportional), color);
+        let text_pos = egui::pos2(
+            rect.right() - 5.0 - galley.size().x,
+            rect.center().y - galley.size().y / 2.0,
+        );
+        let dot = egui::pos2(text_pos.x - 8.0, rect.center().y);
+        ui.painter().rect_filled(
+            egui::Rect::from_min_max(
+                egui::pos2(rect.right() - 120.0, rect.top() + 1.0),
+                egui::pos2(rect.right(), rect.bottom() - 1.0),
+            ),
+            Rounding::same(4.0),
+            theme::CARD_2,
+        );
+        ui.painter().circle_filled(dot, 3.0, color);
+        ui.painter().galley(text_pos, galley, color);
+    }
+
+    copied
 }
 
 fn short_key(key: &str) -> String {
@@ -1372,9 +1511,11 @@ mod tests {
                     password: "outra".into(),
                 },
             ],
+            language: Some(Lang::Pt.code().into()),
         };
         let text = toml::to_string_pretty(&stored).expect("serialize");
         let parsed: StoredRooms = toml::from_str(&text).expect("parse");
+        assert_eq!(parsed.language.as_deref(), Some("pt"));
         assert_eq!(parsed.rooms.len(), 2);
         assert_eq!(parsed.rooms[0].name, "casa");
         assert_eq!(parsed.rooms[0].password, "segredo");
