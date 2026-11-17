@@ -1,6 +1,6 @@
 # Nuuvia
 
-[English](README.md) | **Português** · [Site](https://cesarzxk.github.io/nuuvia-vpn/)
+[English](README.md) | **Português** · [Site](https://nuuvia.devcesar.com/)
 
 LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
