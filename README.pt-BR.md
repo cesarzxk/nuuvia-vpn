@@ -138,7 +138,8 @@ tráfego IPv4 TCP/UDP/ICMP entre este PC e os peers daquela rede:
 - **BLOQUEAR** — descarta todo o tráfego IPv4 da rede.
 - **PERSONALIZADO** — uma allowlist como
   `tcp:25565, udp:4445, udp:19132-19133, icmp`. O painel **APPS** lista os
-  programas com portas em escuta neste PC e adiciona as portas TCP/UDP deles.
+  programas com portas em escuta neste PC e adiciona as portas TCP/UDP deles;
+  o botão vira **REMOVE** para retirá-las.
 
 A rede pode herdar a política global de **REDE → FIREWALL** ou
 sobrescrevê-la. Respostas de conexões permitidas são rastreadas
