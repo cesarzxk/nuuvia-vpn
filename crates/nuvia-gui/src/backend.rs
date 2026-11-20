@@ -8,7 +8,7 @@ use nuvia_core::mesh::GroupSession;
 use nuvia_core::room::mesh_ip;
 use nuvia_core::tunnel::{run_mesh, shared_tap_name, MeshConfig, TapHub, TunnelStatus};
 use nuvia_core::{default_server_udp, Identity, RendezvousClient, RendezvousConfig, RoomKey};
-use nuvia_protocol::{peer_tag, PeerInfo};
+use nuvia_protocol::{peer_tag, PeerInfo, PublicRoom};
 use tokio::net::UdpSocket;
 
 use crate::config::SERVER_URL;
@@ -60,6 +60,10 @@ pub enum Event {
     Stopped {
         room: String,
     },
+    PublicRooms {
+        rooms: Vec<PublicRoom>,
+        error: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +79,8 @@ pub struct RoomConfig {
     /// `true` creates the room if it does not exist; `false` requires an
     /// existing room (Join Network).
     pub create: bool,
+    /// Advertise the room in the public directory.
+    pub public: bool,
     pub firewall: FirewallProfile,
 }
 
@@ -111,9 +117,17 @@ impl Backend {
     }
 
     pub fn allocate_slot(&mut self) -> (String, u16) {
+        let base = std::env::var("NUVIA_BIND_PORT")
+            .ok()
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|port| *port > 0)
+            .unwrap_or(42424);
         let index = self.next_index;
         self.next_index += 1;
-        (shared_tap_name().to_string(), 42424 + index as u16)
+        (
+            shared_tap_name().to_string(),
+            base.saturating_add(index as u16),
+        )
     }
 
     pub fn join(&mut self, config: RoomConfig) -> Result<()> {
@@ -158,6 +172,21 @@ impl Backend {
         if let Some(sender) = self.firewalls.get(room) {
             let _ = sender.send(firewall);
         }
+    }
+
+    /// Fetches the public room directory without blocking the UI.
+    pub fn refresh_public_rooms(&self) {
+        let events = self.events_tx.clone();
+        self.runtime.spawn(async move {
+            let event = match nuvia_core::list_public_rooms(crate::config::SERVER_URL).await {
+                Ok(rooms) => Event::PublicRooms { rooms, error: None },
+                Err(error) => Event::PublicRooms {
+                    rooms: Vec::new(),
+                    error: Some(format!("{error:#}")),
+                },
+            };
+            let _ = events.send(event);
+        });
     }
 
     pub fn leave(&mut self, room: &str) {
@@ -219,9 +248,6 @@ async fn run_room(
     firewall: tokio::sync::watch::Receiver<FirewallProfile>,
 ) -> Result<()> {
     let t = config.lang.strings();
-    if config.password.is_empty() {
-        bail!("{}", t.backend_empty_password);
-    }
 
     let identity =
         Identity::load_or_create(&config.identity_path, hostname()).with_context(|| {
@@ -255,6 +281,9 @@ async fn run_room(
         *identity.public_key(),
     );
     rendezvous.create = config.create;
+    rendezvous.room_name = Some(config.name.clone());
+    rendezvous.public = config.public;
+    rendezvous.has_password = !config.password.is_empty();
     if let Ok(bind) = socket.local_addr() {
         rendezvous.set_local_endpoints(bind);
     }
