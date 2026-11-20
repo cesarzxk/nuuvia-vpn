@@ -139,7 +139,8 @@ TCP/UDP/ICMP traffic between this PC and the peers of that room:
 - **BLOCK** — drops all IPv4 traffic in the room.
 - **CUSTOM** — an allowlist such as
   `tcp:25565, udp:4445, udp:19132-19133, icmp`. The **APPS** panel lists
-  programs with listening ports on this PC and adds their TCP/UDP ports.
+  programs with listening ports on this PC and adds their TCP/UDP ports; the
+  button then becomes **REMOVE** to take them out again.
 
 A room can inherit the global policy from **NETWORK → FIREWALL** or
 override it. Replies to allowed connections are tracked automatically. ARP is
