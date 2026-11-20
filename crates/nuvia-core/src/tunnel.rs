@@ -10,6 +10,7 @@ use tokio::time::MissedTickBehavior;
 use tracing::{debug, info, warn};
 use tun_rs::{AsyncDevice, DeviceBuilder, Layer};
 
+use crate::firewall::{Firewall, FirewallProfile};
 use crate::mesh::GroupSession;
 use crate::noise::{Handshake, Role};
 use crate::rendezvous::RendezvousClient;
@@ -50,6 +51,10 @@ pub struct MeshConfig {
     pub token: [u8; 16],
     pub status: Option<tokio::sync::mpsc::Sender<TunnelStatus>>,
     pub peers: Option<tokio::sync::mpsc::Sender<Vec<PeerInfo>>>,
+    pub firewall: FirewallProfile,
+    /// Live updates from the GUI. When present, the mesh applies changes
+    /// without restarting the room.
+    pub firewall_updates: Option<tokio::sync::watch::Receiver<FirewallProfile>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -534,11 +539,15 @@ pub async fn run_mesh(
     // low-latency path.
     let mut peer_sources: HashMap<[u8; PEER_TAG_LEN], SocketAddr> = HashMap::new();
     let mut pending_pings: HashMap<u64, Instant> = HashMap::new();
+    let mut firewall = Firewall::new(config.firewall.clone())
+        .map_err(|error| Error::config(format!("invalid firewall rules: {error}")))?;
+    let mut firewall_updates = config.firewall_updates;
 
     info!(
         server = %config.server_addr,
         direct_peers = direct_peers.len(),
         endpoints = ?direct_peers,
+        firewall = %config.firewall,
         "mesh ready"
     );
     let mut udp_buffer = vec![0u8; MAX_PACKET];
@@ -552,6 +561,19 @@ pub async fn run_mesh(
     let mut fallback_sent = false;
 
     loop {
+        if let Some(rx) = firewall_updates.as_mut() {
+            if rx.has_changed().unwrap_or(false) {
+                let profile = rx.borrow_and_update().clone();
+                match Firewall::new(profile.clone()) {
+                    Ok(next) => {
+                        firewall = next;
+                        info!(mode = %profile, "mesh firewall updated");
+                    }
+                    Err(error) => warn!(%error, "invalid firewall update ignored"),
+                }
+            }
+        }
+
         tokio::select! {
             _ = &mut fallback, if !fallback_sent => {
                 fallback_sent = true;
@@ -562,6 +584,10 @@ pub async fn run_mesh(
                 }
             }
             Some(frame) = outbound.recv() => {
+                if !firewall.allow_outbound(&frame) {
+                    debug!("firewall dropped outbound frame");
+                    continue;
+                }
                 let inner = group.seal(&frame)?;
                 for peer in &direct_peers {
                     if let Err(error) = socket.send_to(&inner, peer).await {
@@ -645,7 +671,13 @@ pub async fn run_mesh(
                                 }
                             }
                         } else if !frame.is_empty() {
-                            inbound.send(frame).await.map_err(|_| Error::config("shared TAP hub stopped"))?;
+                            if firewall.allow_inbound(&frame) {
+                                inbound.send(frame).await.map_err(|_| {
+                                    Error::config("shared TAP hub stopped")
+                                })?;
+                            } else {
+                                debug!("firewall dropped inbound frame");
+                            }
                         }
                     }
                     Err(error) => debug!(%error, "mesh frame rejected"),
