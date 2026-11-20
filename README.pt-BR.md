@@ -8,11 +8,12 @@ LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
 
-> Status: **1.2.4**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
+> Status: **1.3.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
-> com caminho direto ou relay, status por participante, lista de redes
-> persistida e fechar para a bandeja (tray).
+> com caminho direto ou relay, status por participante, firewall por rede com
+> importação de portas de apps, lista de redes persistida e fechar para a
+> bandeja (tray).
 
 > O nome do produto é **Nuuvia**. Identificadores internos, binários (`nuvia`,
 > `nuvia-gui`), pacotes, caminhos de configuração e nomes de TAP mantêm a grafia
@@ -322,10 +323,10 @@ Validado em um Windows 11 real com Minecraft Java 1.8.5.
 
 Gera:
 
-- `dist/nuvia_1.2.4_amd64.deb` — instala `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.3.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
   `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.2.4-x86_64.AppImage` — portátil. O `AppRun` copia o binário
+- `dist/nuvia-1.3.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
   para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
