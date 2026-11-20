@@ -20,6 +20,12 @@ The bundled `tap-windows6` driver is an upstream GPLv2 component signed by its
 own publisher. It is included in the installer but is **not** signed with the
 Nuuvia/SignPath certificate.
 
+The optional software renderer in `soft\` bundles an unmodified Mesa3D 26.3.0
+build (MIT-licensed, from `pal1000/mesa-dist-win`) as `opengl32.dll` and
+`libgallium_wgl.dll`. These upstream DLLs are **not** signed with the
+Nuuvia/SignPath certificate; their license is included as
+`soft\MESA-LICENSE.txt`.
+
 ## Release process
 
 1. A release is built from this public repository by GitHub Actions on a
@@ -52,7 +58,7 @@ the NSIS script:
 
 - **ProductName:** Nuuvia
 - **ProductVersion / FileVersion:** the workspace version in `Cargo.toml`
-  (currently `1.2.0`)
+  (currently `1.2.4`)
 - **CompanyName:** Nuuvia contributors
 - **LegalCopyright:** MIT License
 
