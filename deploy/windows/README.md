@@ -42,7 +42,7 @@ TAP, porta, papel nem IP.
 Cada rede tem **FIREWALL** no menu de contexto e um selo (`FW GLOBAL`,
 `FW GAMES`, `FW BLOCK`, `FW CUSTOM`). O filtro controla TCP/UDP/ICMP IPv4 entre
 o PC e os peers daquela sala; ARP é sempre permitido. O padrão global fica em
-**AJUDA → Ajustes → FIREWALL** e cada rede pode sobrescrevê-lo. Mudanças
+**REDE → FIREWALL** e cada rede pode sobrescrevê-lo. Mudanças
 aplicam imediatamente às redes conectadas. O firewall roda no mesh da GUI; o
 modo pairwise do CLI não usa esse filtro.
 
