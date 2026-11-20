@@ -33,14 +33,13 @@ impl RoomKey {
     /// Derive the room id and pre-shared key from a room name and password.
     ///
     /// Argon2id makes brute forcing the password from a leaked PSK expensive.
-    /// The password itself is never stored or transmitted.
+    /// The password itself is never stored or transmitted. An empty password
+    /// makes an open room: every peer derives the same key from the public
+    /// room name.
     pub fn derive(room: &str, password: &str) -> Result<Self> {
         let room = room.trim();
         if room.is_empty() {
             return Err(Error::config("room name must not be empty"));
-        }
-        if password.is_empty() {
-            return Err(Error::config("room password must not be empty"));
         }
 
         let mut hasher = blake3::Hasher::new();
@@ -148,7 +147,18 @@ mod tests {
     #[test]
     fn rejects_empty_input() {
         assert!(RoomKey::derive("", "x").is_err());
-        assert!(RoomKey::derive("x", "").is_err());
+        assert!(RoomKey::derive("x", "").is_ok());
+    }
+
+    #[test]
+    fn open_room_depends_only_on_the_name() {
+        let a = RoomKey::derive("casa", "").unwrap();
+        let b = RoomKey::derive(" casa ", "").unwrap();
+        let locked = RoomKey::derive("casa", "segredo").unwrap();
+        assert_eq!(a.id(), b.id());
+        assert_eq!(a.psk(), b.psk());
+        assert_eq!(a.id(), locked.id());
+        assert_ne!(a.psk(), locked.psk());
     }
 
     #[test]
