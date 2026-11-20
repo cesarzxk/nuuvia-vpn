@@ -1,6 +1,6 @@
 ; nuvia VPN installer (NSIS 3)
 ; Build from the repository root:
-;   makensis -DVERSION=1.2.0 deploy/windows/nuvia.nsi
+;   makensis -DVERSION=1.2.4 deploy/windows/nuvia.nsi
 
 Unicode true
 ManifestDPIAware true
@@ -12,7 +12,7 @@ CRCCheck on
 !include "x64.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.2.0"
+  !define VERSION "1.2.4"
 !endif
 
 !ifndef ROOT
@@ -22,6 +22,7 @@ CRCCheck on
 !define CLI_EXE "${ROOT}/dist/windows/nuvia.exe"
 !define PROBE_EXE "${ROOT}/dist/windows/lanprobe.exe"
 !define DRIVER_DIR "${ROOT}/dist/windows/driver"
+!define SOFT_DIR "${ROOT}/dist/windows/soft"
 !define TAP_SCRIPT "${ROOT}/dist/windows/install-tap.ps1"
 !define APP_README "${ROOT}/dist/windows/README.md"
 !define APP_ICON "${ROOT}/deploy/windows/nuvia-bmp.ico"
@@ -45,7 +46,7 @@ BrandingText "Nuuvia"
 !define MUI_WELCOMEPAGE_TEXT "LAN virtual criptografada para jogos, Linux e Windows.$\r$\n$\r$\nO instalador copia o Nuuvia e o driver TAP assinado. É preciso ser administrador."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta de instalação do Nuuvia."
 
-VIProductVersion "1.2.0.0"
+VIProductVersion "${VERSION}.0"
 VIAddVersionKey "CompanyName" "Nuuvia contributors"
 VIAddVersionKey "ProductName" "Nuuvia"
 VIAddVersionKey "FileDescription" "Instalador do Nuuvia VPN"
@@ -100,6 +101,16 @@ Section "Nuuvia VPN" SEC_MAIN
   SetOutPath "$INSTDIR\driver"
   File /r "${DRIVER_DIR}/*.*"
 
+  ; Compatibility renderer: Windows loads opengl32.dll from the executable's
+  ; directory first, so this copy always uses Mesa llvmpipe (software OpenGL).
+  SetOutPath "$INSTDIR\soft"
+  File "/oname=opengl32.dll" "${SOFT_DIR}/opengl32.dll"
+  File "/oname=libgallium_wgl.dll" "${SOFT_DIR}/libgallium_wgl.dll"
+  File "/oname=MESA-LICENSE.txt" "${SOFT_DIR}/MESA-LICENSE.txt"
+  File "/oname=nuvia-gui.exe.local" "${SOFT_DIR}/nuvia-gui.exe.local"
+  Delete "$INSTDIR\soft\nuvia-gui.exe"
+  CopyFiles "$INSTDIR\nuvia-gui.exe" "$INSTDIR\soft"
+
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
@@ -115,6 +126,7 @@ Section "Nuuvia VPN" SEC_MAIN
 
   CreateDirectory "$SMPROGRAMS\Nuuvia"
   CreateShortcut "$SMPROGRAMS\Nuuvia\Nuuvia VPN.lnk" "$INSTDIR\nuvia-gui.exe" "" "$INSTDIR\nuvia-gui.exe" 0
+  CreateShortcut "$SMPROGRAMS\Nuuvia\Nuuvia VPN (compatibilidade).lnk" "$INSTDIR\soft\nuvia-gui.exe" "" "$INSTDIR\soft\nuvia-gui.exe" 0
   CreateShortcut "$DESKTOP\Nuuvia VPN.lnk" "$INSTDIR\nuvia-gui.exe" "" "$INSTDIR\nuvia-gui.exe" 0
   Delete "$DESKTOP\nuvia VPN.lnk"
   Delete "$SMPROGRAMS\nuvia\nuvia VPN.lnk"
@@ -138,6 +150,7 @@ Section "Uninstall"
   Delete "$DESKTOP\Nuuvia VPN.lnk"
   Delete "$DESKTOP\nuvia VPN.lnk"
   Delete "$SMPROGRAMS\Nuuvia\Nuuvia VPN.lnk"
+  Delete "$SMPROGRAMS\Nuuvia\Nuuvia VPN (compatibilidade).lnk"
   Delete "$SMPROGRAMS\nuvia\nuvia VPN.lnk"
   RMDir "$SMPROGRAMS\Nuuvia"
   RMDir "$SMPROGRAMS\nuvia"
