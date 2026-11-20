@@ -45,8 +45,11 @@ o PC e os peers daquela sala; ARP é sempre permitido. O padrão global fica em
 **REDE → FIREWALL** e cada rede pode sobrescrevê-lo. Mudanças
 aplicam imediatamente às redes conectadas. No modo **PERSONALIZADO**, o
 botão **APPS** importa as portas TCP/UDP dos aplicativos em execução e vira
-**REMOVE** para retirá-las. O firewall roda no mesh da GUI; o modo pairwise
-do CLI não usa esse filtro.
+**REMOVE** para retirá-las. Em **Criar rede**, a senha é opcional e **Rede
+pública** lista a sala no diretório; **Entrar em rede** mostra as redes
+públicas com os selos ABERTA/COM SENHA. Sem senha, a chave é derivada do nome,
+então qualquer pessoa que souber o nome pode entrar e ler o tráfego. O firewall
+roda no mesh da GUI; o modo pairwise do CLI não usa esse filtro.
 
 O menu **REDE** também permite adicionar outras redes. Todas usam o **mesmo
 adaptador `nuvia0` e o mesmo IP `10.240.x.y/16`**; cada sala tem sua porta UDP,
