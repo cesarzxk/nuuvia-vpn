@@ -125,6 +125,26 @@ cobrem todas as salas conectadas; não é preciso ativar uma rede por vez. O bot
 **ON/OFF** da barra conecta ou desconecta a sala selecionada sem apagar a rede
 da lista.
 
+### Firewall por rede
+
+Cada cartão de rede tem um item **FIREWALL** no menu de contexto e um selo
+(`FW GLOBAL`, `FW JOGOS`, `FW BLOQUEAR`, `FW PERSONALIZADO`). A política filtra
+tráfego IPv4 TCP/UDP/ICMP entre este PC e os peers daquela rede:
+
+- **TUDO** — sem filtro.
+- **JOGOS** — descoberta LAN e portas comuns de jogos (Minecraft 4445/25565,
+  Bedrock 19132–19133, Source/Steam 27015–27036, Xbox 3074, PSN 3478–3480,
+  mDNS/SSDP e ICMP).
+- **BLOQUEAR** — descarta todo o tráfego IPv4 da rede.
+- **PERSONALIZADO** — uma allowlist como
+  `tcp:25565, udp:4445, udp:19132-19133, icmp`.
+
+A rede pode herdar a política global de **AJUDA → Ajustes → FIREWALL** ou
+sobrescrevê-la. Respostas de conexões permitidas são rastreadas
+automaticamente. ARP é sempre permitido para o segmento Ethernet virtual;
+IPv6 só é permitido em **TUDO**. O filtro roda no caminho mesh da GUI (o modo
+pairwise do CLI não usa), e mudanças aplicam imediatamente às redes conectadas.
+
 O topo mostra **um único IP de TAP**, igual para todas as salas. Cada cartão é
 uma linha compacta com título e badge; **clique no cartão** para expandir
 abaixo a lista de participantes daquela sala. Como o TAP é compartilhado, o
