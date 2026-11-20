@@ -4,8 +4,9 @@ use std::time::{Duration, Instant};
 use getifaddrs::{getifaddrs, InterfaceFlags};
 
 use nuvia_protocol::{
-    hex_string, parse_hex, Hello, HelloAck, PeerInfo, RegisterRequest, RegisterResponse,
-    ACK_INVALID_TOKEN, ACK_OK, ACK_ROOM_NOT_FOUND, DEFAULT_SERVER_UDP_PORT, PROTOCOL_VERSION,
+    hex_string, parse_hex, Hello, HelloAck, PeerInfo, PublicRoom, PublicRoomsResponse,
+    RegisterRequest, RegisterResponse, ACK_INVALID_TOKEN, ACK_OK, ACK_ROOM_NOT_FOUND,
+    DEFAULT_SERVER_UDP_PORT, PROTOCOL_VERSION,
 };
 use rand::RngCore;
 use tokio::net::UdpSocket;
@@ -28,6 +29,12 @@ pub struct RendezvousConfig {
     /// Create the room when it does not exist (CLI and Create Network), or
     /// require an existing room (Join Network).
     pub create: bool,
+    /// Human-readable name used when creating a public room.
+    pub room_name: Option<String>,
+    /// Advertise the room in the public directory.
+    pub public: bool,
+    /// Directory hint: the room was created with a password.
+    pub has_password: bool,
 }
 
 impl RendezvousConfig {
@@ -48,6 +55,9 @@ impl RendezvousConfig {
             local_endpoints: Vec::new(),
             expected_peer: None,
             create: true,
+            room_name: None,
+            public: false,
+            has_password: false,
         }
     }
 
@@ -91,6 +101,9 @@ impl RendezvousClient {
             token: hex_string(&self.config.token),
             create: self.config.create,
             name: self.config.name.clone(),
+            room_name: self.config.room_name.clone(),
+            public: self.config.public,
+            has_password: self.config.has_password,
             local_endpoints: self
                 .config
                 .local_endpoints
@@ -253,6 +266,39 @@ impl RendezvousClient {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     }
+}
+
+/// Fetches the public room directory from the rendezvous server.
+pub async fn list_public_rooms(server_url: &str) -> Result<Vec<PublicRoom>> {
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .no_proxy()
+        .build()
+        .map_err(|error| Error::Http(error.to_string()))?;
+    let url = format!("{}/v1/rooms", server_url.trim_end_matches('/'));
+    let response = http
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| Error::Http(error.to_string()))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(Error::Http(format!("{status}: {body}")));
+    }
+
+    let body = response
+        .json::<PublicRoomsResponse>()
+        .await
+        .map_err(|error| Error::Http(error.to_string()))?;
+    if body.protocol != PROTOCOL_VERSION {
+        return Err(Error::Http(format!(
+            "server protocol {} is not supported",
+            body.protocol
+        )));
+    }
+    Ok(body.rooms)
 }
 
 fn fatal_http(error: &Error) -> bool {
