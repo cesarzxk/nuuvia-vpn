@@ -50,6 +50,11 @@ pub struct RegisterRequest {
     pub room_id: String,
     pub peer_id: String,
     pub token: String,
+    /// `false` joins an existing room only; the server returns 404 when the
+    /// room is unknown. Omitted/`true` preserves the original create-if-missing
+    /// behavior for older clients.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub create: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// LAN addresses (`ip:port`) where this peer's UDP socket can also be
@@ -57,6 +62,14 @@ pub struct RegisterRequest {
     /// NAT, where the public endpoint is not hairpin-reachable.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub local_endpoints: Vec<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
