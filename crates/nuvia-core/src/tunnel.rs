@@ -896,22 +896,140 @@ fn run_powershell(script: &str) -> std::io::Result<std::process::Output> {
         .output()
 }
 
-/// Adds or removes the three discovery routes on Windows using `New-NetRoute`,
-/// which is more reliable and locale-independent than parsing `netsh` output.
+/// Stable location for the route backup. A crashed session leaves the file
+/// behind and the next install restores it before taking a fresh snapshot.
 #[cfg(windows)]
-fn route_script(interface: &str, add: bool) -> std::io::Result<std::process::Output> {
+fn discovery_backup_path() -> std::path::PathBuf {
+    let base = std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    base.join("nuvia").join("discovery-routes.json")
+}
+
+/// Adds or removes the three discovery routes on Windows using `New-NetRoute`.
+/// Installing temporarily removes competing multicast/broadcast routes from
+/// other adapters (saving them to a backup file) so the shared TAP wins. The
+/// backup is restored when the session ends. PowerShell exits non-zero when the
+/// TAP does not end up as the selected discovery interface, so the failure is
+/// visible in `nuvia.log`.
+#[cfg(windows)]
+fn route_script(
+    interface: &str,
+    add: bool,
+    backup: &std::path::Path,
+) -> std::io::Result<std::process::Output> {
     let interface = interface.replace('\'', "''");
-    let mut script = String::from("$ErrorActionPreference = 'Stop';");
-    for destination in ["224.0.0.0/4", "224.0.2.60/32", "255.255.255.255/32"] {
-        script.push_str(&format!(
-            "Remove-NetRoute -DestinationPrefix '{destination}'              -InterfaceAlias '{interface}' -Confirm:$false -ErrorAction SilentlyContinue;"
-        ));
-        if add {
-            script.push_str(&format!(
-                "New-NetRoute -DestinationPrefix '{destination}'                  -InterfaceAlias '{interface}' -RouteMetric 1 -PolicyStore ActiveStore;"
-            ));
-        }
-    }
+    let backup = backup.to_string_lossy().replace('\'', "''");
+
+    let script = if add {
+        format!(
+            r#"$ErrorActionPreference = 'Stop';
+$tap = '{interface}';
+$backupPath = '{backup}';
+$prefixes = @('224.0.0.0/4', '224.0.2.60/32', '255.255.255.255/32');
+$warnings = @();
+# Restore routes left behind by a session that ended abruptly.
+try {{
+  $previous = Get-Content -Raw -Path $backupPath -ErrorAction Stop;
+  if ($previous) {{
+    foreach ($r in @($previous | ConvertFrom-Json)) {{
+      if ($prefixes -notcontains $r.DestinationPrefix) {{ continue }}
+      try {{
+        New-NetRoute -DestinationPrefix $r.DestinationPrefix `
+          -InterfaceAlias $r.InterfaceAlias -NextHop $r.NextHop `
+          -RouteMetric $r.RouteMetric -PolicyStore ActiveStore `
+          -ErrorAction Stop | Out-Null;
+      }} catch {{
+        # The route or its adapter is already gone; nothing to restore.
+      }}
+    }}
+  }}
+}} catch {{
+  # No previous backup.
+}}
+# Snapshot every competing route before changing anything.
+$saved = @();
+foreach ($p in $prefixes) {{
+  foreach ($r in @(Get-NetRoute -DestinationPrefix $p -ErrorAction SilentlyContinue |
+    Where-Object {{ $_.InterfaceAlias -ne $tap }})) {{
+    $saved += [pscustomobject]@{{
+      DestinationPrefix = $r.DestinationPrefix;
+      InterfaceAlias = $r.InterfaceAlias;
+      NextHop = $r.NextHop;
+      RouteMetric = $r.RouteMetric
+    }};
+  }}
+}}
+ConvertTo-Json -InputObject @($saved) -Compress |
+  Set-Content -Path $backupPath -Encoding UTF8;
+try {{
+  Set-NetIPInterface -InterfaceAlias $tap -InterfaceMetric 1 `
+    -AddressFamily IPv4 -ErrorAction Stop;
+}} catch {{
+  $warnings += "interface metric: $($_.Exception.Message)";
+}}
+foreach ($r in $saved) {{
+  try {{
+    Remove-NetRoute -DestinationPrefix $r.DestinationPrefix `
+      -InterfaceAlias $r.InterfaceAlias -NextHop $r.NextHop `
+      -Confirm:$false -ErrorAction Stop | Out-Null;
+  }} catch {{
+    $warnings += "remove $($r.DestinationPrefix) on $($r.InterfaceAlias): $($_.Exception.Message)";
+  }}
+}}
+foreach ($p in $prefixes) {{
+  Remove-NetRoute -DestinationPrefix $p -InterfaceAlias $tap `
+    -Confirm:$false -ErrorAction SilentlyContinue | Out-Null;
+  try {{
+    New-NetRoute -DestinationPrefix $p -InterfaceAlias $tap `
+      -RouteMetric 1 -PolicyStore ActiveStore -ErrorAction Stop | Out-Null;
+  }} catch {{
+    $warnings += "add $p on $tap: $($_.Exception.Message)";
+  }}
+}}
+$missing = @($prefixes | Where-Object {{
+  -not (Get-NetRoute -DestinationPrefix $_ -InterfaceAlias $tap `
+    -ErrorAction SilentlyContinue)
+}});
+$selected = @(Find-NetRoute -RemoteIPAddress '224.0.2.60' `
+  -ErrorAction SilentlyContinue |
+  Select-Object IPAddress,InterfaceAlias,RouteMetric);
+ConvertTo-Json -InputObject $selected -Compress;
+if ($warnings.Count -gt 0) {{
+  [Console]::Error.WriteLine(($warnings -join ' | '));
+}}
+if ($missing.Count -gt 0) {{
+  [Console]::Error.WriteLine("missing routes on $($tap): $($missing -join ', ')");
+  exit 1;
+}}
+if (-not ($selected | Where-Object {{ $_.InterfaceAlias -eq $tap }})) {{
+  [Console]::Error.WriteLine("discovery route did not select $tap");
+  exit 1;
+}}"#
+        )
+    } else {
+        format!(
+            r#"$ErrorActionPreference = 'SilentlyContinue';
+$tap = '{interface}';
+$backupPath = '{backup}';
+$prefixes = @('224.0.0.0/4', '224.0.2.60/32', '255.255.255.255/32');
+foreach ($p in $prefixes) {{
+  Remove-NetRoute -DestinationPrefix $p -InterfaceAlias $tap `
+    -Confirm:$false -ErrorAction SilentlyContinue | Out-Null;
+}}
+try {{ $json = Get-Content -Raw -Path $backupPath -ErrorAction Stop }} catch {{ $json = $null }}
+if ($json) {{
+  foreach ($r in @($json | ConvertFrom-Json)) {{
+    if ($prefixes -notcontains $r.DestinationPrefix) {{ continue }}
+    New-NetRoute -DestinationPrefix $r.DestinationPrefix `
+      -InterfaceAlias $r.InterfaceAlias -NextHop $r.NextHop `
+      -RouteMetric $r.RouteMetric -PolicyStore ActiveStore `
+      -ErrorAction SilentlyContinue | Out-Null;
+  }}
+}}"#
+        )
+    };
+
     run_powershell(&script)
 }
 
@@ -920,6 +1038,8 @@ fn route_script(interface: &str, add: bool) -> std::io::Result<std::process::Out
 struct RouteGuard {
     #[cfg(any(target_os = "linux", windows))]
     interface: String,
+    #[cfg(windows)]
+    backup: std::path::PathBuf,
 }
 
 impl RouteGuard {
@@ -955,9 +1075,18 @@ impl RouteGuard {
 
         #[cfg(windows)]
         {
-            match route_script(interface, true) {
+            let backup = discovery_backup_path();
+            if let Some(parent) = backup.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            match route_script(interface, true, &backup) {
                 Ok(output) if output.status.success() => {
-                    info!(interface, "installed discovery routes");
+                    let selected = String::from_utf8_lossy(&output.stdout);
+                    info!(
+                        interface,
+                        selected = %selected.trim(),
+                        "installed discovery routes"
+                    );
                 }
                 Ok(output) => {
                     let text = format!(
@@ -975,6 +1104,7 @@ impl RouteGuard {
             }
             Self {
                 interface: interface.to_string(),
+                backup,
             }
         }
 
@@ -1000,7 +1130,8 @@ impl Drop for RouteGuard {
 
         #[cfg(windows)]
         {
-            let _ = route_script(&self.interface, false);
+            let _ = route_script(&self.interface, false, &self.backup);
+            let _ = std::fs::remove_file(&self.backup);
         }
     }
 }
