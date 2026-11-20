@@ -139,7 +139,7 @@ tráfego IPv4 TCP/UDP/ICMP entre este PC e os peers daquela rede:
 - **PERSONALIZADO** — uma allowlist como
   `tcp:25565, udp:4445, udp:19132-19133, icmp`.
 
-A rede pode herdar a política global de **AJUDA → Ajustes → FIREWALL** ou
+A rede pode herdar a política global de **REDE → FIREWALL** ou
 sobrescrevê-la. Respostas de conexões permitidas são rastreadas
 automaticamente. ARP é sempre permitido para o segmento Ethernet virtual;
 IPv6 só é permitido em **TUDO**. O filtro roda no caminho mesh da GUI (o modo
