@@ -39,6 +39,13 @@ TAP, porta, papel nem IP.
    sala nova silenciosamente quando o nome ou a senha estão errados.
 4. Abra o jogo **depois** do Nuuvia e use **Open to LAN**.
 
+Cada rede tem **FIREWALL** no menu de contexto e um selo (`FW GLOBAL`,
+`FW GAMES`, `FW BLOCK`, `FW CUSTOM`). O filtro controla TCP/UDP/ICMP IPv4 entre
+o PC e os peers daquela sala; ARP é sempre permitido. O padrão global fica em
+**AJUDA → Ajustes → FIREWALL** e cada rede pode sobrescrevê-lo. Mudanças
+aplicam imediatamente às redes conectadas. O firewall roda no mesh da GUI; o
+modo pairwise do CLI não usa esse filtro.
+
 O menu **REDE** também permite adicionar outras redes. Todas usam o **mesmo
 adaptador `nuvia0` e o mesmo IP `10.240.x.y/16`**; cada sala tem sua porta UDP,
 sessão mesh e chave de grupo. Até 8 pessoas por sala e várias salas ao mesmo
