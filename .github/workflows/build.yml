@@ -75,7 +75,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            mingw-w64 nsis zip unzip curl
+            mingw-w64 nsis zip unzip curl p7zip-full
       - run: chmod +x scripts/*.sh
       - run: ./scripts/build-windows-package.sh
       - uses: actions/upload-artifact@v4
