@@ -11,9 +11,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::{Parser, Subcommand};
 use nuvia_protocol::{
-    decode_relay, hex_string, parse_hex, peer_tag, Hello, HelloAck, PeerInfo, RegisterRequest,
-    RegisterResponse, RelayPacket, BROADCAST_TAG, PEER_ID_LEN, PROTOCOL_VERSION, ROOM_ID_LEN,
-    TOKEN_LEN,
+    decode_relay, hex_string, parse_hex, peer_tag, Hello, HelloAck, PeerInfo, PublicRoom,
+    PublicRoomsResponse, RegisterRequest, RegisterResponse, RelayPacket, BROADCAST_TAG,
+    PEER_ID_LEN, PROTOCOL_VERSION, ROOM_ID_LEN, TOKEN_LEN,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -64,6 +64,9 @@ struct Room {
     token_hash: [u8; 32],
     created: Instant,
     peers: HashMap<[u8; PEER_ID_LEN], Peer>,
+    public: bool,
+    has_password: bool,
+    name: Option<String>,
 }
 
 struct AppState {
@@ -139,6 +142,7 @@ async fn serve(
 
     let app = Router::new()
         .route("/v1/register", post(register))
+        .route("/v1/rooms", get(public_rooms))
         .route("/v1/healthz", get(health))
         .with_state(state);
 
@@ -199,12 +203,26 @@ async fn register(
                 "server room limit reached".into(),
             ));
         }
+        let room_name = request.room_name.as_deref().and_then(sanitize_room_name);
+        if request.public && room_name.is_none() {
+            return Err((StatusCode::BAD_REQUEST, "public room needs a name".into()));
+        }
+        if request.public
+            && room_name
+                .as_ref()
+                .is_some_and(|name| name.chars().count() > 64)
+        {
+            return Err((StatusCode::BAD_REQUEST, "room name is too long".into()));
+        }
         rooms.insert(
             room_id,
             Room {
                 token_hash,
                 created: Instant::now(),
                 peers: HashMap::new(),
+                public: request.public && room_name.is_some(),
+                has_password: request.has_password,
+                name: room_name,
             },
         );
         info!(room = %hex_string(&room_id), "room created");
@@ -273,13 +291,59 @@ async fn register(
     }))
 }
 
+async fn public_rooms(State(state): State<Arc<AppState>>) -> Json<PublicRoomsResponse> {
+    let now = Instant::now();
+    let peer_ttl = Duration::from_secs(state.config.peer_ttl_secs);
+    let rooms = state.rooms.read().await;
+    let mut public: Vec<PublicRoom> = rooms
+        .values()
+        .filter(|room| room.public)
+        .filter_map(|room| {
+            let name = room.name.as_ref()?;
+            let peers = room
+                .peers
+                .values()
+                .filter(|peer| now.duration_since(peer.last_seen) < peer_ttl)
+                .count();
+            (peers > 0).then(|| PublicRoom {
+                name: name.clone(),
+                has_password: room.has_password,
+                peers,
+                max_peers: state.config.max_peers_per_room,
+            })
+        })
+        .collect();
+    public.sort_by(|left, right| {
+        right
+            .peers
+            .cmp(&left.peers)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    public.truncate(100);
+    Json(PublicRoomsResponse {
+        protocol: PROTOCOL_VERSION,
+        rooms: public,
+    })
+}
+
+fn sanitize_room_name(value: &str) -> Option<String> {
+    let name: String = value.trim().chars().filter(|ch| !ch.is_control()).collect();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
+}
+
 async fn health(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let rooms = state.rooms.read().await;
     let peers: usize = rooms.values().map(|room| room.peers.len()).sum();
+    let public = rooms.values().filter(|room| room.public).count();
     Json(json!({
         "status": "ok",
         "protocol": PROTOCOL_VERSION,
         "rooms": rooms.len(),
+        "public_rooms": public,
         "peers": peers,
         "public_url": state.config.public_url,
     }))
@@ -440,5 +504,18 @@ async fn cleanup_loop(state: Arc<AppState>) {
                 .retain(|_, peer| now.duration_since(peer.last_seen) < peer_ttl);
             !room.peers.is_empty() || now.duration_since(room.created) < room_ttl
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn room_names_are_trimmed_and_sanitized() {
+        assert_eq!(sanitize_room_name("  casa  ").as_deref(), Some("casa"));
+        assert_eq!(sanitize_room_name("a\nb").as_deref(), Some("ab"));
+        assert_eq!(sanitize_room_name("   "), None);
+        assert_eq!(sanitize_room_name(&"x".repeat(80)).unwrap().len(), 80);
     }
 }
