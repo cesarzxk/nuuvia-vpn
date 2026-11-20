@@ -26,6 +26,36 @@ pub enum FirewallMode {
     Custom,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FirewallRuleProtocol {
+    Tcp,
+    Udp,
+    Icmp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FirewallRuleView {
+    pub protocol: FirewallRuleProtocol,
+    pub start: u16,
+    pub end: u16,
+}
+
+impl FirewallRuleView {
+    pub fn label(self) -> String {
+        match self.protocol {
+            FirewallRuleProtocol::Icmp => "ICMP".into(),
+            FirewallRuleProtocol::Tcp if self.start == self.end => {
+                format!("TCP {}", self.start)
+            }
+            FirewallRuleProtocol::Udp if self.start == self.end => {
+                format!("UDP {}", self.start)
+            }
+            FirewallRuleProtocol::Tcp => format!("TCP {}-{}", self.start, self.end),
+            FirewallRuleProtocol::Udp => format!("UDP {}-{}", self.start, self.end),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirewallProfile {
     pub mode: FirewallMode,
@@ -74,6 +104,70 @@ impl FirewallProfile {
         } else {
             Ok(())
         }
+    }
+
+    pub fn port_rules(&self) -> Result<Vec<FirewallRuleView>, String> {
+        Ok(parse_rules(&self.rules)?
+            .into_iter()
+            .map(|rule| match rule {
+                PortRule::Tcp(start, end) => FirewallRuleView {
+                    protocol: FirewallRuleProtocol::Tcp,
+                    start,
+                    end,
+                },
+                PortRule::Udp(start, end) => FirewallRuleView {
+                    protocol: FirewallRuleProtocol::Udp,
+                    start,
+                    end,
+                },
+                PortRule::Icmp => FirewallRuleView {
+                    protocol: FirewallRuleProtocol::Icmp,
+                    start: 0,
+                    end: 0,
+                },
+            })
+            .collect())
+    }
+
+    pub fn set_port_rules(&mut self, rules: &[FirewallRuleView]) -> Result<(), String> {
+        let mut parts = Vec::with_capacity(rules.len());
+        for rule in rules {
+            match rule.protocol {
+                FirewallRuleProtocol::Icmp => parts.push("icmp".to_string()),
+                FirewallRuleProtocol::Tcp | FirewallRuleProtocol::Udp => {
+                    if rule.start == 0 || rule.end == 0 || rule.start > rule.end {
+                        return Err("ports must be between 1 and 65535 (start <= end)".into());
+                    }
+                    let prefix = if rule.protocol == FirewallRuleProtocol::Tcp {
+                        "tcp"
+                    } else {
+                        "udp"
+                    };
+                    if rule.start == rule.end {
+                        parts.push(format!("{prefix}:{}", rule.start));
+                    } else {
+                        parts.push(format!("{prefix}:{}-{}", rule.start, rule.end));
+                    }
+                }
+            }
+        }
+        self.rules = parts.join(",");
+        Ok(())
+    }
+
+    pub fn add_port_rule(&mut self, rule: FirewallRuleView) -> Result<(), String> {
+        let mut rules = self.port_rules()?;
+        rules.push(rule);
+        self.set_port_rules(&rules)
+    }
+
+    pub fn remove_port_rule(&mut self, index: usize) -> Result<(), String> {
+        let mut rules = self.port_rules()?;
+        if index >= rules.len() {
+            return Err("rule index out of range".into());
+        }
+        rules.remove(index);
+        self.set_port_rules(&rules)
     }
 }
 
@@ -396,6 +490,34 @@ mod tests {
         assert!(FirewallProfile::custom("tcp:0").validate().is_err());
         assert!(FirewallProfile::custom("udp:9000-8000").validate().is_err());
         assert!(FirewallProfile::custom("nope:22").validate().is_err());
+    }
+
+    #[test]
+    fn custom_rules_can_be_edited_structurally() {
+        let mut profile = FirewallProfile::custom("tcp:25565,udp:19132-19133,icmp");
+        let rules = profile.port_rules().unwrap();
+        assert_eq!(rules.len(), 3);
+        assert_eq!(rules[0].label(), "TCP 25565");
+        assert_eq!(rules[1].label(), "UDP 19132-19133");
+        assert_eq!(rules[2].label(), "ICMP");
+
+        profile.remove_port_rule(1).unwrap();
+        assert_eq!(profile.rules, "tcp:25565,icmp");
+        profile
+            .add_port_rule(FirewallRuleView {
+                protocol: FirewallRuleProtocol::Udp,
+                start: 4445,
+                end: 4445,
+            })
+            .unwrap();
+        assert!(profile.rules.contains("udp:4445"));
+        assert!(profile
+            .add_port_rule(FirewallRuleView {
+                protocol: FirewallRuleProtocol::Tcp,
+                start: 0,
+                end: 0,
+            })
+            .is_err());
     }
 
     #[test]
