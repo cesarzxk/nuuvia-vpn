@@ -33,6 +33,12 @@ The bundled `tap-windows6` driver is an upstream GPLv2 component signed by its
 own publisher. It is included in the installer but is not signed with the
 Nuuvia/SignPath certificate.
 
+The optional software renderer in `soft\` bundles an unmodified Mesa3D 26.3.0
+build (MIT-licensed, from `pal1000/mesa-dist-win`) as `opengl32.dll` and
+`libgallium_wgl.dll` for machines without a working GPU driver. These upstream
+DLLs are not signed with the Nuuvia/SignPath certificate; their license is
+included in the installer.
+
 ## Build and release process
 
 - Public Rust workspace: `crates/nuvia-core`, `nuvia-cli`, `nuvia-gui`,
@@ -42,10 +48,10 @@ Nuuvia/SignPath certificate.
   installer is built on the same runner.
 - SignPath will sign the executables; the installer is then rebuilt with the
   signed executables and signed again.
-- Releases are created from `v*` tags. Current release: `v1.2.0`.
+- Releases are created from `v*` tags. Current release: `v1.2.4`.
 - Every signing request is manually approved by the maintainer.
 - Product metadata is embedded in every PE file: ProductName `Nuuvia`,
-  ProductVersion/FileVersion from `Cargo.toml` (currently `1.2.0`).
+  ProductVersion/FileVersion from `Cargo.toml` (currently `1.2.4`).
 
 ## Compliance links
 
@@ -84,8 +90,8 @@ CI environment; SignPath's OSS HSM-backed flow fits the project.
   - `SIGNPATH_PROJECT_SLUG=nuuvia` (variable)
   - `SIGNPATH_POLICY_SLUG=release-signing` (variable)
 - [ ] Add the signed-release workflow (manual dispatch first).
-- [ ] Build and sign 1.2.0 without changing the version.
-- [ ] Replace the Windows assets on the existing `v1.2.0` release:
+- [ ] Build and sign 1.2.4 without changing the version.
+- [ ] Replace the Windows assets on the existing `v1.2.4` release:
   - `nuvia-setup-x86_64.exe`
   - `nuvia-windows-x86_64.zip`
 - [ ] Verify the signature with `signtool verify /pa /v` on Windows.
@@ -98,4 +104,4 @@ CI environment; SignPath's OSS HSM-backed flow fits the project.
   If that happens, the fallback is Certum Open Source (€49–69/year).
 - Signing does not guarantee the immediate disappearance of every SmartScreen
   warning; it establishes a verified publisher and lets reputation accumulate.
-- Keep the version at `1.2.0` for the replacement release, as requested.
+- Keep the version at `1.2.4` for the replacement release, as requested.
