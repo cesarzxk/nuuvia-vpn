@@ -126,6 +126,26 @@ connected room; there is no need to activate one room at a time. The **ON/OFF**
 button in the bar connects or disconnects the selected room without removing it
 from the list.
 
+### Room firewall
+
+Each room card has a **FIREWALL** item in the right-click menu and a badge
+(`FW GLOBAL`, `FW GAMES`, `FW BLOCK`, `FW CUSTOM`). The policy filters IPv4
+TCP/UDP/ICMP traffic between this PC and the peers of that room:
+
+- **ALL** — no filtering.
+- **GAMES** — LAN discovery and common game ports (Minecraft 4445/25565,
+  Bedrock 19132–19133, Source/Steam 27015–27036, Xbox 3074, PSN 3478–3480,
+  mDNS/SSDP and ICMP).
+- **BLOCK** — drops all IPv4 traffic in the room.
+- **CUSTOM** — an allowlist such as
+  `tcp:25565, udp:4445, udp:19132-19133, icmp`.
+
+A room can inherit the global policy from **HELP → Settings → FIREWALL** or
+override it. Replies to allowed connections are tracked automatically. ARP is
+always allowed for the virtual Ethernet segment; IPv6 is only allowed by
+**ALL**. The filter runs in the GUI mesh data path (the CLI pairwise mode does
+not use it), and changes apply to connected rooms immediately.
+
 The top bar shows **one TAP IP**, the same for all rooms. Each card is a compact
 line with a title and badge; **click the card** to expand that room's participant
 list below. Because the TAP is shared, Minecraft sees the LANs of all active
