@@ -12,8 +12,8 @@ including **broadcast** and **multicast** discovery.
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
-> per-room firewall with app port import, a persisted room list, and
-> close-to-tray.
+> per-room firewall with app port import, public network discovery, a persisted
+> room list, and close-to-tray.
 
 > The product name is **Nuuvia**. Internal identifiers, binaries (`nuvia`,
 > `nuvia-gui`), packages, configuration paths, and TAP names keep the original
@@ -148,6 +148,21 @@ override it. Replies to allowed connections are tracked automatically. ARP is
 always allowed for the virtual Ethernet segment; IPv6 is only allowed by
 **ALL**. The filter runs in the GUI mesh data path (the CLI pairwise mode does
 not use it), and changes apply to connected rooms immediately.
+
+### Public networks
+
+**Create Network** has a **Public network** checkbox and the password is
+optional. Public networks are listed by the relay server and appear in
+**Join Network** under **Public networks**, with an OPEN/LOCKED badge and the
+current player count. Selecting an OPEN network joins immediately with an
+empty password; selecting a LOCKED one fills the name and asks for the
+password. **REFRESH** (and the automatic refresh while the dialog is open)
+updates the list.
+
+A network without a password is an open room: the traffic key is derived from
+the public name, so anyone who knows the name can join and decrypt its traffic.
+Use a password for private groups, and leave **Public network** unchecked to
+keep a room out of the directory.
 
 The top bar shows **one TAP IP**, the same for all rooms. Each card is a compact
 line with a title and badge; **click the card** to expand that room's participant
