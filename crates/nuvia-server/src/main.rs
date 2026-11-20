@@ -190,6 +190,9 @@ async fn register(
     let mut rooms = state.rooms.write().await;
 
     if !rooms.contains_key(&room_id) {
+        if !request.create {
+            return Err((StatusCode::NOT_FOUND, "room not found".into()));
+        }
         if rooms.len() >= state.config.max_rooms {
             return Err((
                 StatusCode::SERVICE_UNAVAILABLE,
