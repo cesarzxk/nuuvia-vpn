@@ -4,8 +4,13 @@ O cliente Windows usa o driver **tap-windows6** (o mesmo driver do OpenVPN)
 para criar uma Ethernet virtual. O driver é assinado e funciona no Windows 10 e
 11. Ele é GPLv2 e é distribuído junto no instalador, não é linkado ao Nuuvia.
 
-A GUI usa o renderer **wgpu** (DirectX 12, com WARP de fallback) em vez de
-OpenGL, para funcionar também em máquinas sem OpenGL 2.0.
+A GUI usa **OpenGL (glow)** por padrão, que funciona em placas antigas, e cai
+automaticamente para **wgpu** (DirectX 12/Vulkan) quando o OpenGL não está
+disponível. Se os dois falharem (por exemplo, OpenGL 1.1 e nenhum adaptador
+DX12/Vulkan), o app reinicia sozinho a cópia em `soft\`, que usa **Mesa3D
+llvmpipe** — OpenGL por software, sem precisar de GPU ou driver de vídeo. Para
+forçar um renderer, defina `NUVIA_RENDERER=wgpu` ou `NUVIA_RENDERER=glow` antes
+de abrir o app.
 
 ## Instalador (recomendado)
 
@@ -30,7 +35,8 @@ TAP, porta, papel nem IP.
 1. Abra `nuvia-gui.exe` e aceite o UAC.
 2. No primeiro PC: menu **REDE** → **CRIAR REDE**.
 3. No segundo PC: menu **REDE** → **ENTRAR EM REDE** com o **mesmo nome** e a
-   **mesma senha**.
+   **mesma senha**. Entrar só funciona se a sala já existir; a GUI não cria uma
+   sala nova silenciosamente quando o nome ou a senha estão errados.
 4. Abra o jogo **depois** do Nuuvia e use **Open to LAN**.
 
 O menu **REDE** também permite adicionar outras redes. Todas usam o **mesmo
@@ -159,6 +165,17 @@ desconecte a rede ativa ou ative outra.
 
 Se a janela fechar sozinha, o log fica em
 `%APPDATA%\nuvia\nuvia.log` (o executável é GUI, sem console).
+
+O log também mostra qual renderer foi usado (`Glow`, `Wgpu` ou o fallback por
+software). Em PCs antigos, se a janela não abrir, teste `NUVIA_RENDERER=glow` e
+`NUVIA_RENDERER=wgpu` para isolar um problema de driver de vídeo. O app tenta o
+outro renderer automaticamente; se ambos falharem, ele mostra no log
+`relaunching with software OpenGL` e abre a cópia em `soft\` com Mesa3D
+llvmpipe. Também há um atalho **Nuuvia VPN (compatibilidade)** no menu Iniciar
+que abre essa cópia diretamente.
+
+O `soft\` inclui `opengl32.dll` e `libgallium_wgl.dll` do Mesa3D 26.3.0. Eles são
+distribuídos sem modificação e a licença está em `soft\MESA-LICENSE.txt`.
 
 Se o log mostrar `direct tunnel failed: ... os error 2` ou `TAP indisponível`,
 o driver `tap-windows6` não está instalado/registrado nesse PC. Rode como
