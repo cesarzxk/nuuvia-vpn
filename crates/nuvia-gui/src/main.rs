@@ -1,6 +1,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod app;
+mod apps;
 mod backend;
 mod config;
 mod i18n;
