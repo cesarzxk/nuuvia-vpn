@@ -8,7 +8,7 @@ LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
 
-> Status: **1.2.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
+> Status: **1.2.4**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
 > com caminho direto ou relay, status por participante, lista de redes
@@ -28,7 +28,7 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
   <img src="docs/screenshots/create-network.png" width="24%" alt="Criar ou entrar em uma rede">
   <img src="docs/screenshots/relay.png" width="24%" alt="Caminho relay, latência e participante offline">
   <img src="docs/screenshots/settings.png" width="24%" alt="Ajustes e seletor de idioma">
-  <img src="docs/screenshots/about.png" width="24%" alt="Sobre o Nuuvia 1.2.0">
+  <img src="docs/screenshots/about.png" width="24%" alt="Sobre o Nuuvia">
 </p>
 
 ## O que já funciona
@@ -109,7 +109,8 @@ pede servidor, caminho, TAP, porta, papel nem IP.
 2. Menu **REDE** → **CRIAR REDE** no primeiro PC.
 3. Digite um nome de rede e uma senha; confirme.
 4. No outro PC, menu **REDE** → **ENTRAR EM REDE** com o **mesmo nome** e a
-   **mesma senha**.
+   **mesma senha**. Entrar só aceita uma sala existente; nome ou senha errados
+   mantêm o diálogo aberto e não adicionam a sala.
 
 O primeiro peer cria a sala no servidor; os demais entram com o mesmo nome e
 senha. A GUI suporta até 8 participantes por sala e várias salas ao mesmo
@@ -274,11 +275,13 @@ No PC Windows:
 3. Menu **REDE** → **CRIAR REDE** ou **ENTRAR EM REDE**.
 
 O instalador e os binários ainda não têm assinatura de código; o SmartScreen
-pode avisar. A GUI Windows usa wgpu/DirectX 12 (WARP como fallback), então não
-depende de OpenGL 2.0. Se fechar ao abrir ou aparecer `os error 2`/`TAP
-indisponível`, veja `%APPDATA%\nuvia\nuvia.log`: o app tenta reparar/renomear o
-TAP automaticamente e, se necessário, roda o `devcon` embutido. O instalador não
-reinstala o driver quando ele já está presente.
+pode avisar. A GUI Windows tenta OpenGL primeiro, depois wgpu/DirectX
+12/Vulkan, e por último um renderer Mesa3D por software embutido, então ela
+também abre em máquinas que só têm o driver OpenGL 1.1 genérico. Se fechar ao
+abrir ou aparecer `os error 2`/`TAP indisponível`, veja
+`%APPDATA%\nuvia\nuvia.log`: o app tenta reparar/renomear o TAP automaticamente
+e, se necessário, roda o `devcon` embutido. O instalador não reinstala o driver
+quando ele já está presente.
 
 ### O que o Windows configura automaticamente
 
@@ -297,10 +300,10 @@ Validado em um Windows 11 real com Minecraft Java 1.8.5.
 
 Gera:
 
-- `dist/nuvia_1.2.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.2.4_amd64.deb` — instala `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
   `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.2.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
+- `dist/nuvia-1.2.4-x86_64.AppImage` — portátil. O `AppRun` copia o binário
   para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
