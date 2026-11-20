@@ -5,6 +5,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use nuvia_core::firewall::FirewallProfile;
 use nuvia_core::mesh::GroupSession;
 use nuvia_core::rendezvous::{RendezvousClient, RendezvousConfig};
 use nuvia_core::tunnel::{run_mesh, MeshConfig, TapIo, TunnelStatus};
@@ -45,6 +46,8 @@ fn spawn_peer(
         token: TOKEN,
         status: Some(status_tx),
         peers: None,
+        firewall: FirewallProfile::default(),
+        firewall_updates: None,
     };
     let rendezvous = RendezvousClient::new(RendezvousConfig::new(
         "http://127.0.0.1:1",
