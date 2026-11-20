@@ -1,6 +1,6 @@
 ; nuvia VPN installer (NSIS 3)
 ; Build from the repository root:
-;   makensis -DVERSION=1.2.4 deploy/windows/nuvia.nsi
+;   makensis -DVERSION=1.3.0 deploy/windows/nuvia.nsi
 
 Unicode true
 ManifestDPIAware true
@@ -12,7 +12,7 @@ CRCCheck on
 !include "x64.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.2.4"
+  !define VERSION "1.3.0"
 !endif
 
 !ifndef ROOT
