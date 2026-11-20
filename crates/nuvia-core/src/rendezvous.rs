@@ -25,6 +25,9 @@ pub struct RendezvousConfig {
     /// network can bypass NAT hairpinning.
     pub local_endpoints: Vec<SocketAddr>,
     pub expected_peer: Option<[u8; 32]>,
+    /// Create the room when it does not exist (CLI and Create Network), or
+    /// require an existing room (Join Network).
+    pub create: bool,
 }
 
 impl RendezvousConfig {
@@ -44,6 +47,7 @@ impl RendezvousConfig {
             name: None,
             local_endpoints: Vec::new(),
             expected_peer: None,
+            create: true,
         }
     }
 
@@ -85,6 +89,7 @@ impl RendezvousClient {
             room_id: hex_string(&self.config.room_id),
             peer_id: hex_string(&self.config.peer_id),
             token: hex_string(&self.config.token),
+            create: self.config.create,
             name: self.config.name.clone(),
             local_endpoints: self
                 .config
