@@ -1,0 +1,50 @@
+Mesa3D software OpenGL (llvmpipe)
+=================================
+
+Nuuvia bundles an unmodified Mesa3D build as a last-resort OpenGL renderer
+for machines without a working hardware OpenGL/DX12 driver.
+
+- Version: 26.3.0
+- Build: mesa3d-26.3.0-release-msvc (x64), from
+  https://github.com/pal1000/mesa-dist-win/releases/tag/26.3.0
+- Upstream source: https://gitlab.freedesktop.org/mesa/mesa/-/tree/mesa-26.3.0
+- Files: opengl32.dll, libgallium_wgl.dll
+
+The DLLs are distributed unmodified. They are not signed with the
+Nuuvia/SignPath certificate.
+
+License and Copyright
+=====================
+
+Disclaimer
+----------
+
+Mesa implements various APIs, including OpenGL, OpenGL ES, Vulkan and OpenCL.
+Even though Mesa implements these APIs, the implementation isn't formally
+conformant on all combinations of drivers and hardware. Khronos maintains
+lists of conformant implementations for each of their APIs, as well as
+trademark details.
+
+This project is called Mesa, Mesa3D, or The Mesa 3-D graphics library.
+
+License / Copyright Information
+-------------------------------
+
+The Mesa distribution consists of several components. Different copyrights
+and licenses apply to different components. For example, the GLX client code
+uses the SGI Free Software License B, and some of the Mesa device drivers are
+copyrighted by their authors.
+
+The core Mesa library is licensed according to the terms of the MIT license.
+
+Most of the Mesa code is licensed under the MIT license, but individual files
+may have their own licenses.
+
+You may find all the licenses used within this project in the licenses/
+directory of the Mesa source distribution:
+https://gitlab.freedesktop.org/mesa/mesa/-/tree/mesa-26.3.0/licenses
+
+Mesa Component Licenses
+-----------------------
+
+In general, consult each source file SPDX identifier for license terms.
