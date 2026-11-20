@@ -57,6 +57,17 @@ pub struct RegisterRequest {
     pub create: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Human-readable room name. Used only when the room is created, so the
+    /// server can list public rooms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub room_name: Option<String>,
+    /// Advertise the room in the public directory.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub public: bool,
+    /// Directory hint: the creator set a password. The server never sees the
+    /// password itself.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub has_password: bool,
     /// LAN addresses (`ip:port`) where this peer's UDP socket can also be
     /// reached. They are hints for direct paths between peers behind the same
     /// NAT, where the public endpoint is not hairpin-reachable.
@@ -70,6 +81,24 @@ fn default_true() -> bool {
 
 fn is_true(value: &bool) -> bool {
     *value
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicRoom {
+    pub name: String,
+    pub has_password: bool,
+    pub peers: usize,
+    pub max_peers: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicRoomsResponse {
+    pub protocol: u16,
+    pub rooms: Vec<PublicRoom>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -336,6 +365,42 @@ mod tests {
         assert_eq!(decoded.room, invite.room);
         assert_eq!(decoded.token, invite.token);
         assert_eq!(decoded.server, invite.server);
+    }
+
+    #[test]
+    fn public_room_directory_roundtrip() {
+        let request = RegisterRequest {
+            protocol: PROTOCOL_VERSION,
+            room_id: "11".repeat(ROOM_ID_LEN),
+            peer_id: "22".repeat(PEER_ID_LEN),
+            token: "33".repeat(TOKEN_LEN),
+            create: true,
+            name: Some("host".into()),
+            room_name: Some("casa".into()),
+            public: true,
+            has_password: false,
+            local_endpoints: Vec::new(),
+        };
+        let encoded = serde_json::to_string(&request).unwrap();
+        let decoded: RegisterRequest = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded.room_name.as_deref(), Some("casa"));
+        assert!(decoded.public);
+        assert!(!decoded.has_password);
+
+        let response = PublicRoomsResponse {
+            protocol: PROTOCOL_VERSION,
+            rooms: vec![PublicRoom {
+                name: "casa".into(),
+                has_password: false,
+                peers: 2,
+                max_peers: 8,
+            }],
+        };
+        let encoded = serde_json::to_string(&response).unwrap();
+        let decoded: PublicRoomsResponse = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded.rooms.len(), 1);
+        assert_eq!(decoded.rooms[0].name, "casa");
+        assert_eq!(decoded.rooms[0].peers, 2);
     }
 
     #[test]
