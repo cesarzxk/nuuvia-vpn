@@ -1290,7 +1290,7 @@ impl NuviaApp {
             .collapsible(false)
             .resizable(false)
             .vscroll(true)
-            .max_height(500.0)
+            .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -24.0])
             .frame(
                 Frame::none()
@@ -1315,7 +1315,8 @@ impl NuviaApp {
                             RichText::new(t.public_rooms)
                                 .font(theme::semibold(10.0))
                                 .color(theme::ACCENT),
-                        );
+                        )
+                        .on_hover_text(t.public_rooms_hint);
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if ui
                                 .add_enabled(
@@ -1333,103 +1334,56 @@ impl NuviaApp {
                             }
                         });
                     });
-                    ui.label(
-                        RichText::new(t.public_rooms_hint)
-                            .size(9.5)
-                            .color(theme::MUTED),
-                    );
-                    ui.add_space(4.0);
-                    if self.public_rooms_loading && self.public_rooms.is_empty() {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(
-                                RichText::new(t.public_searching)
-                                    .size(10.0)
-                                    .color(theme::MUTED),
-                            );
-                        });
-                    } else if let Some(error) = &self.public_rooms_error {
-                        ui.label(RichText::new(t.public_error).size(10.0).color(theme::RED))
-                            .on_hover_text(error);
+                    ui.add_space(2.0);
+                    let choose = if self.public_rooms_loading && self.public_rooms.is_empty() {
+                        t.public_searching
+                    } else if self.public_rooms_error.is_some() {
+                        t.public_error
                     } else if self.public_rooms.is_empty() {
-                        ui.label(RichText::new(t.public_empty).size(10.0).color(theme::MUTED));
+                        t.public_empty
                     } else {
-                        ScrollArea::vertical()
-                            .id_salt("public-rooms")
-                            .max_height(140.0)
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                let row_width = ui.available_width();
+                        t.public_choose
+                    };
+                    let has_rooms = !self.public_rooms.is_empty();
+                    ui.add_enabled_ui(has_rooms, |ui| {
+                        egui::ComboBox::from_id_salt("public-networks")
+                            .width(320.0)
+                            .selected_text(RichText::new(choose).size(11.0).color(if has_rooms {
+                                theme::TEXT
+                            } else {
+                                theme::MUTED
+                            }))
+                            .show_ui(ui, |ui| {
                                 for room in &self.public_rooms {
                                     let full = room.peers >= room.max_peers;
-                                    let button_width = 58.0;
-                                    let spacing = ui.spacing().item_spacing.x;
-                                    let text_width =
-                                        (row_width - button_width - spacing).max(100.0);
-                                    ui.horizontal(|ui| {
-                                        ui.allocate_ui_with_layout(
-                                            Vec2::new(text_width, 34.0),
-                                            Layout::top_down(Align::Min),
-                                            |ui| {
-                                                ui.set_min_width(text_width);
-                                                ui.horizontal(|ui| {
-                                                    ui.add(
-                                                        egui::Label::new(
-                                                            RichText::new(&room.name)
-                                                                .font(theme::semibold(11.5))
-                                                                .color(theme::TEXT),
-                                                        )
-                                                        .truncate(),
-                                                    );
-                                                    let (badge, color) = if room.has_password {
-                                                        (t.public_locked, theme::AMBER)
-                                                    } else {
-                                                        (t.public_open, theme::ACCENT)
-                                                    };
-                                                    theme::badge(ui, badge, color);
-                                                });
-                                                ui.label(
-                                                    RichText::new(format!(
-                                                        "{}/{}",
-                                                        room.peers, room.max_peers
-                                                    ))
-                                                    .size(9.0)
-                                                    .color(theme::MUTED),
-                                                );
-                                            },
-                                        );
-                                        if full {
-                                            ui.add_enabled(
+                                    let (state, color) = if full {
+                                        (t.public_full, theme::MUTED)
+                                    } else if room.has_password {
+                                        (t.public_locked, theme::AMBER)
+                                    } else {
+                                        (t.public_open, theme::ACCENT)
+                                    };
+                                    let label = format!(
+                                        "{state}  ·  {}  ·  {}/{}",
+                                        room.name, room.peers, room.max_peers
+                                    );
+                                    let clicked = ui
+                                        .add_enabled_ui(!full, |ui| {
+                                            ui.selectable_label(
                                                 false,
-                                                egui::Button::new(
-                                                    RichText::new(t.public_full)
-                                                        .font(theme::semibold(8.5))
-                                                        .color(theme::MUTED),
-                                                )
-                                                .min_size(Vec2::new(button_width, 22.0)),
-                                            );
-                                        } else if ui
-                                            .add_sized(
-                                                [button_width, 22.0],
-                                                egui::Button::new(
-                                                    RichText::new(t.join_now)
-                                                        .font(theme::semibold(9.0))
-                                                        .color(theme::ACCENT),
-                                                )
-                                                .fill(theme::CARD_3)
-                                                .stroke(Stroke::new(1.0_f32, theme::BORDER)),
+                                                RichText::new(label).size(11.0).color(color),
                                             )
-                                            .clicked()
-                                        {
-                                            public_action =
-                                                Some((room.name.clone(), room.has_password));
-                                        }
-                                    });
-                                    ui.add_space(2.0);
+                                        })
+                                        .inner
+                                        .clicked();
+                                    if clicked {
+                                        public_action =
+                                            Some((room.name.clone(), room.has_password));
+                                        ui.close_menu();
+                                    }
                                 }
                             });
-                    }
+                    });
                     ui.add_space(8.0);
                     ui.separator();
                     ui.add_space(6.0);
