@@ -8,7 +8,7 @@ Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
 
-> Status: **1.2.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> Status: **1.2.4**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
@@ -28,7 +28,7 @@ including **broadcast** and **multicast** discovery.
   <img src="docs/screenshots/create-network.png" width="24%" alt="Create or join a network">
   <img src="docs/screenshots/relay.png" width="24%" alt="Relay path, latency and offline participant">
   <img src="docs/screenshots/settings.png" width="24%" alt="Settings and language selector">
-  <img src="docs/screenshots/about.png" width="24%" alt="About Nuuvia 1.2.0">
+  <img src="docs/screenshots/about.png" width="24%" alt="About Nuuvia">
 </p>
 
 ## What already works
@@ -110,7 +110,8 @@ not ask for a server, path, TAP, port, role, or IP.
 2. **REDE** menu → **CRIAR REDE** on the first PC.
 3. Type a room name and a password; confirm.
 4. On the other PC, **REDE** menu → **ENTRAR EM REDE** with the **same name**
-   and **same password**.
+   and **same password**. Join only accepts an existing room; a wrong name or
+   password keeps the dialog open and does not add the room.
 
 The first peer creates the room on the server; the others join with the same
 name and password. The GUI supports up to 8 participants per room and several
@@ -274,11 +275,13 @@ On the Windows PC:
 3. **REDE** menu → **CRIAR REDE** or **ENTRAR EM REDE**.
 
 The installer and binaries are not code-signed yet; SmartScreen may warn. The
-Windows GUI uses wgpu/DirectX 12 (WARP as fallback), so it does not depend on
-OpenGL 2.0. If it closes on startup or shows `os error 2`/`TAP unavailable`,
-check `%APPDATA%\nuvia\nuvia.log`: the app tries to repair/rename the TAP
-automatically and, if needed, runs the embedded `devcon`. The installer does
-not reinstall the driver when it is already present.
+Windows GUI tries OpenGL first, then wgpu/DirectX 12/Vulkan, and finally a
+bundled Mesa3D software renderer, so it also starts on machines that only have
+the generic OpenGL 1.1 driver. If it closes on startup or shows
+`os error 2`/`TAP unavailable`, check `%APPDATA%\nuvia\nuvia.log`: the app tries
+to repair/rename the TAP automatically and, if needed, runs the embedded
+`devcon`. The installer does not reinstall the driver when it is already
+present.
 
 ### What Windows configures automatically
 
@@ -297,10 +300,10 @@ Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
 
 Generates:
 
-- `dist/nuvia_1.2.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.2.4_amd64.deb` — installs `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
   launcher uses `pkexec` to ask for the password and create the TAP/routes;
-- `dist/nuvia-1.2.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
+- `dist/nuvia-1.2.4-x86_64.AppImage` — portable. `AppRun` copies the binary to
   an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
