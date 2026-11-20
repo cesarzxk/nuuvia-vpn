@@ -17,16 +17,137 @@ fn main() -> eframe::Result<()> {
 
     init_logging();
 
-    let renderer = {
-        #[cfg(windows)]
-        {
-            eframe::Renderer::Wgpu
-        }
-        #[cfg(not(windows))]
-        {
-            eframe::Renderer::Glow
-        }
+    #[cfg(windows)]
+    if is_software_copy() {
+        // This copy lives next to Mesa's `opengl32.dll`. Force the CPU
+        // renderer so a half-working driver cannot make Mesa pick a broken
+        // hardware path.
+        std::env::set_var("GALLIUM_DRIVER", "llvmpipe");
+    }
+
+    #[cfg(windows)]
+    let result = run_windows();
+    #[cfg(not(windows))]
+    let result = run(eframe::Renderer::Glow);
+
+    if let Err(error) = &result {
+        tracing::error!(%error, "eframe exited with an error");
+    }
+    result
+}
+
+/// Picks a renderer that also works on older Windows machines.
+///
+/// `wgpu` needs a DX12/Vulkan-capable GPU and a recent driver; on older
+/// hardware it fails before the window is created and the app looks like it
+/// does nothing. OpenGL (glow) only needs OpenGL 2.0 and has much broader
+/// support, so it is the default. The environment variable `NUVIA_RENDERER`
+/// can force `wgpu`/`dx12`/`vulkan` or `glow`/`opengl`. If the preferred
+/// renderer fails, the other one is tried; if both fail, the copy in `soft\`
+/// is started with Mesa's software OpenGL (llvmpipe).
+#[cfg(windows)]
+fn run_windows() -> eframe::Result<()> {
+    let preferred = std::env::var("NUVIA_RENDERER")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    let result = match preferred.as_str() {
+        "wgpu" | "dx12" | "vulkan" => match run(eframe::Renderer::Wgpu) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                tracing::warn!(%error, "wgpu renderer failed; retrying with OpenGL");
+                run(eframe::Renderer::Glow)
+            }
+        },
+        _ => match run(eframe::Renderer::Glow) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                tracing::warn!(%error, "OpenGL renderer failed; retrying with wgpu");
+                run(eframe::Renderer::Wgpu)
+            }
+        },
     };
+
+    if let Err(error) = &result {
+        tracing::error!(%error, "both hardware renderers failed");
+        if relaunch_with_software_gl() {
+            std::process::exit(0);
+        }
+    }
+    result
+}
+
+/// True when this executable is the compatibility copy in `soft\`, identified
+/// by Mesa's `opengl32.dll` sitting next to it.
+#[cfg(windows)]
+fn is_software_copy() -> bool {
+    if std::env::var_os("NUVIA_SOFTWARE_GL").is_some() {
+        return true;
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|executable| {
+            executable
+                .parent()
+                .map(|directory| directory.join("opengl32.dll").is_file())
+        })
+        .unwrap_or(false)
+}
+
+/// Last-resort fallback for machines with neither OpenGL 2.0 nor DX12/Vulkan.
+///
+/// The installer keeps a copy of this executable in `soft\`, next to Mesa's
+/// software OpenGL DLLs. Running that copy makes Windows load llvmpipe before
+/// the GUI starts. The `NUVIA_SOFTWARE_GL` environment variable prevents an
+/// endless relaunch loop if even the software renderer fails.
+#[cfg(windows)]
+fn relaunch_with_software_gl() -> bool {
+    if std::env::var_os("NUVIA_SOFTWARE_GL").is_some() {
+        return false;
+    }
+
+    let Ok(executable) = std::env::current_exe() else {
+        return false;
+    };
+    let Some(name) = executable.file_name() else {
+        return false;
+    };
+    let Some(directory) = executable.parent() else {
+        return false;
+    };
+    let candidate = directory.join("soft").join(name);
+    if !candidate.is_file() {
+        return false;
+    }
+
+    match std::process::Command::new(&candidate)
+        .env("NUVIA_SOFTWARE_GL", "1")
+        .env("GALLIUM_DRIVER", "llvmpipe")
+        .env_remove("NUVIA_RENDERER")
+        .env_remove("WGPU_BACKEND")
+        .env_remove("MESA_GL_VERSION_OVERRIDE")
+        .spawn()
+    {
+        Ok(_) => {
+            tracing::info!(
+                path = %candidate.display(),
+                "relaunching with software OpenGL"
+            );
+            true
+        }
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                path = %candidate.display(),
+                "could not start software OpenGL fallback"
+            );
+            false
+        }
+    }
+}
+
+fn run(renderer: eframe::Renderer) -> eframe::Result<()> {
+    tracing::info!(?renderer, "starting GUI renderer");
 
     let options = eframe::NativeOptions {
         persist_window: false,
@@ -40,18 +161,14 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
 
-    let result = eframe::run_native(
+    eframe::run_native(
         "Nuuvia",
         options,
         Box::new(|cc| {
             theme::install(&cc.egui_ctx);
             Ok(Box::new(app::NuviaApp::new(cc)))
         }),
-    );
-    if let Err(error) = &result {
-        tracing::error!(%error, "eframe exited with an error");
-    }
-    result
+    )
 }
 
 fn init_logging() {
