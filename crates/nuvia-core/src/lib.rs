@@ -11,6 +11,7 @@
 //! The L2 switch / discovery layers will sit on top of `tunnel`.
 
 pub mod error;
+pub mod firewall;
 pub mod identity;
 pub mod mesh;
 pub mod noise;
