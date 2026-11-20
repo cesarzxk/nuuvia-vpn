@@ -72,6 +72,13 @@ struct RoomEntry {
     log: VecDeque<String>,
 }
 
+struct PendingAdd {
+    room: String,
+    password: String,
+    tap_name: String,
+    bind_port: u16,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct StoredRooms {
     #[serde(default)]
@@ -117,11 +124,13 @@ pub struct NuviaApp {
 
     discovery: Option<DiscoveryRoutes>,
     active_room: Option<String>,
+    pending_add: Option<PendingAdd>,
 
     tray: Tray,
     quitting: Arc<AtomicBool>,
 
     error: Option<String>,
+    error_room: Option<String>,
     toast: Option<(String, Instant)>,
 }
 
@@ -205,9 +214,11 @@ impl NuviaApp {
             show_about: false,
             discovery: None,
             active_room: None,
+            pending_add: None,
             tray,
             quitting,
             error: None,
+            error_room: None,
             toast: None,
         }
     }
@@ -254,7 +265,11 @@ impl NuviaApp {
     }
 
     fn open_add(&mut self, mode: AddMode) {
+        if let Some(pending) = self.pending_add.take() {
+            self.backend.leave(&pending.room);
+        }
         self.error = None;
+        self.error_room = None;
         self.new_name.clear();
         self.new_password.clear();
         self.add_mode = mode;
@@ -262,23 +277,30 @@ impl NuviaApp {
         self.focus_add = true;
     }
 
-    fn join(&mut self) -> bool {
+    /// Starts a room join. The room is only added to the list (and saved)
+    /// after the rendezvous server accepts the derived token, so a wrong
+    /// password cannot look like a successful add.
+    fn join(&mut self) {
         self.error = None;
+        self.error_room = None;
         let t = self.language.strings();
         let name = self.new_name.trim().to_string();
         let password = self.new_password.clone();
 
+        if self.pending_add.is_some() {
+            return;
+        }
         if name.is_empty() {
             self.error = Some(t.err_enter_room_name.into());
-            return false;
+            return;
         }
         if password.is_empty() {
             self.error = Some(t.err_enter_password.into());
-            return false;
+            return;
         }
         if self.rooms.iter().any(|room| room.name == name) {
             self.error = Some(t.err_room_exists.into());
-            return false;
+            return;
         }
 
         let (tap_name, bind_port) = self.backend.allocate_slot();
@@ -289,37 +311,20 @@ impl NuviaApp {
             bind_port,
             identity_path: self.identity_path.clone(),
             lang: self.language,
+            create: matches!(self.add_mode, AddMode::Create),
         };
 
         match self.backend.join(config) {
             Ok(()) => {
-                let mut log = VecDeque::new();
-                log.push_back(t.log_joining.to_string());
-                self.rooms.insert(
-                    0,
-                    RoomEntry {
-                        name,
-                        password,
-                        tap_name,
-                        bind_port,
-                        state: RoomState::Starting,
-                        own_ip: None,
-                        participants: Vec::new(),
-                        peer_paths: HashMap::new(),
-                        peer_pings: HashMap::new(),
-                        log,
-                    },
-                );
-                self.selected = Some(0);
-                self.new_password.clear();
-                self.new_name.clear();
-                self.toast(t.toast_room_added);
-                self.save_rooms();
-                true
+                self.pending_add = Some(PendingAdd {
+                    room: name,
+                    password,
+                    tap_name,
+                    bind_port,
+                });
             }
             Err(error) => {
                 self.error = Some(format!("{error:#}"));
-                false
             }
         }
     }
@@ -391,6 +396,8 @@ impl NuviaApp {
         if index >= self.rooms.len() {
             return;
         }
+        self.error = None;
+        self.error_room = None;
         let (name, password, tap_name, bind_port) = {
             let room = &self.rooms[index];
             (
@@ -412,6 +419,7 @@ impl NuviaApp {
             bind_port,
             identity_path: self.identity_path.clone(),
             lang: self.language,
+            create: true,
         };
         match self.backend.join(config) {
             Ok(()) => {
@@ -487,14 +495,46 @@ impl NuviaApp {
                     own_ip,
                     peers,
                 } => {
+                    if self
+                        .pending_add
+                        .as_ref()
+                        .is_some_and(|pending| pending.room == room)
+                    {
+                        if let Some(pending) = self.pending_add.take() {
+                            let mut log = VecDeque::new();
+                            log.push_back(t.log_joining.to_string());
+                            let mut entry = RoomEntry {
+                                name: pending.room,
+                                password: pending.password,
+                                tap_name: pending.tap_name,
+                                bind_port: pending.bind_port,
+                                state: RoomState::Connecting,
+                                own_ip: Some(own_ip),
+                                participants: Vec::new(),
+                                peer_paths: HashMap::new(),
+                                peer_pings: HashMap::new(),
+                                log,
+                            };
+                            mark_participants_online(&mut entry, &peers);
+                            entry.participants = peers;
+                            self.rooms.insert(0, entry);
+                            self.selected = Some(0);
+                            self.new_name.clear();
+                            self.new_password.clear();
+                            self.show_add = false;
+                            self.error = None;
+                            self.error_room = None;
+                            self.save_rooms();
+                            self.toast(t.toast_room_added);
+                        }
+                        continue;
+                    }
                     if let Some(entry) = self.rooms.iter_mut().find(|entry| entry.name == room) {
                         entry.own_ip = Some(own_ip);
                         entry
-                            .peer_paths
-                            .retain(|tag, _| peers.iter().any(|peer| peer.tag == *tag));
-                        entry
                             .peer_pings
                             .retain(|tag, _| peers.iter().any(|peer| peer.tag == *tag));
+                        mark_participants_online(entry, &peers);
                         entry.participants = peers;
                         refresh_room_summary(entry);
                     }
@@ -511,6 +551,10 @@ impl NuviaApp {
                     }
                 }
                 Event::Connected { room, relay } => {
+                    if self.error_room.as_deref() == Some(room.as_str()) {
+                        self.error = None;
+                        self.error_room = None;
+                    }
                     let mut activate = None;
                     let no_active = self.active_room.is_none();
                     if let Some((index, entry)) = self
@@ -535,6 +579,17 @@ impl NuviaApp {
                     }
                 }
                 Event::Error { room, message } => {
+                    if self
+                        .pending_add
+                        .as_ref()
+                        .is_some_and(|pending| pending.room == room)
+                    {
+                        self.pending_add = None;
+                        self.error = Some(format!("{room}: {message}"));
+                        self.error_room = Some(room);
+                        continue;
+                    }
+                    let room_name = room.clone();
                     if self.active_room.as_deref() == Some(room.as_str()) {
                         self.active_room = None;
                         self.activate_next_connected();
@@ -546,8 +601,19 @@ impl NuviaApp {
                             .push_back(format!("{}: {message}", t.log_error_prefix));
                         self.error = Some(format!("{}: {message}", entry.name));
                     }
+                    self.error_room = Some(room_name);
                 }
                 Event::Stopped { room } => {
+                    if self
+                        .pending_add
+                        .as_ref()
+                        .is_some_and(|pending| pending.room == room)
+                    {
+                        self.pending_add = None;
+                        self.error = Some(format!("{room}: {}", t.log_session_ended));
+                        self.error_room = Some(room);
+                        continue;
+                    }
                     if self.active_room.as_deref() == Some(room.as_str()) {
                         self.active_room = None;
                         self.activate_next_connected();
@@ -953,6 +1019,7 @@ impl NuviaApp {
         let mut open = true;
         let mut close = false;
         let t = self.language.strings();
+        let pending = self.pending_add.is_some();
         let (title, kicker, hint, action) = match self.add_mode {
             AddMode::Create => (
                 t.create_title,
@@ -995,6 +1062,7 @@ impl NuviaApp {
                         .hint_text(t.hint_room_name)
                         .text_color(theme::TEXT)
                         .background_color(theme::CARD_2)
+                        .interactive(!pending)
                         .vertical_align(Align::Center),
                 );
                 if self.focus_add {
@@ -1015,6 +1083,7 @@ impl NuviaApp {
                         .hint_text(t.hint_password)
                         .text_color(theme::TEXT)
                         .background_color(theme::CARD_2)
+                        .interactive(!pending)
                         .vertical_align(Align::Center),
                 );
                 ui.checkbox(
@@ -1024,13 +1093,30 @@ impl NuviaApp {
                         .color(theme::MUTED),
                 );
 
-                let enabled = !self.new_name.trim().is_empty() && !self.new_password.is_empty();
-                let enter = password.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let enabled =
+                    !pending && !self.new_name.trim().is_empty() && !self.new_password.is_empty();
+                let enter = !pending
+                    && password.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 ui.add_space(4.0);
                 let submitted =
                     theme::primary_button(ui, action, enabled).clicked() || (enabled && enter);
-                if submitted && self.join() {
-                    close = true;
+                if submitted {
+                    self.join();
+                }
+                if pending {
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            RichText::new(t.state_connecting)
+                                .font(theme::semibold(11.0))
+                                .color(theme::ACCENT),
+                        );
+                        if ui.button(t.close).clicked() {
+                            close = true;
+                        }
+                    });
                 }
 
                 if let Some(error) = &self.error {
@@ -1045,6 +1131,13 @@ impl NuviaApp {
                 }
             });
         self.show_add = open && !close;
+        if !self.show_add {
+            if let Some(pending) = self.pending_add.take() {
+                self.backend.leave(&pending.room);
+            }
+            self.error = None;
+            self.error_room = None;
+        }
     }
 
     fn settings_window(&mut self, ctx: &Context) {
@@ -1240,6 +1333,8 @@ impl eframe::App for NuviaApp {
             )
             .show(ctx, |ui| {
                 theme::paint_background(ui);
+                let t = self.language.strings();
+                let mut dismiss_error = false;
                 ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
@@ -1253,7 +1348,22 @@ impl eframe::App for NuviaApp {
                                     .rounding(Rounding::same(9.0))
                                     .inner_margin(Margin::same(9.0))
                                     .show(ui, |ui| {
-                                        ui.label(RichText::new(error).color(theme::RED).size(11.0));
+                                        ui.add(
+                                            egui::Label::new(
+                                                RichText::new(error).color(theme::RED).size(11.0),
+                                            )
+                                            .wrap(),
+                                        );
+                                        ui.add_space(2.0);
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(ui.available_width(), 18.0),
+                                            Layout::right_to_left(Align::Center),
+                                            |ui| {
+                                                if ui.small_button(t.close).clicked() {
+                                                    dismiss_error = true;
+                                                }
+                                            },
+                                        );
                                     });
                             }
                         }
@@ -1280,6 +1390,10 @@ impl eframe::App for NuviaApp {
                             }
                         }
                     });
+                if dismiss_error {
+                    self.error = None;
+                    self.error_room = None;
+                }
             });
 
         self.settings_window(ctx);
@@ -1370,6 +1484,28 @@ fn ping_color(ping: Option<u32>) -> Color32 {
         Some(ms) if ms <= 160 => theme::AMBER,
         Some(_) => theme::RED,
         None => theme::MUTED,
+    }
+}
+
+/// Keeps a peer that the rendezvous server still lists as online visible even
+/// before the first mesh frame arrives. A fresh direct/relay status wins; a
+/// stale entry falls back to relay/unknown instead of gray.
+fn mark_participants_online(entry: &mut RoomEntry, peers: &[PeerView]) {
+    let now = Instant::now();
+    entry
+        .peer_paths
+        .retain(|tag, _| peers.iter().any(|peer| peer.tag == *tag));
+    for peer in peers {
+        match entry.peer_paths.get_mut(&peer.tag) {
+            Some((_, seen)) if seen.elapsed() < PEER_STALE_AFTER => {}
+            Some((direct, seen)) => {
+                *direct = false;
+                *seen = now;
+            }
+            None => {
+                entry.peer_paths.insert(peer.tag, (false, now));
+            }
+        }
     }
 }
 
@@ -1500,6 +1636,34 @@ fn relaunch_as_root() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn participants_are_online_before_the_first_mesh_frame() {
+        let mut entry = RoomEntry {
+            name: "casa".into(),
+            password: "casa".into(),
+            tap_name: "nuvia-vpn0".into(),
+            bind_port: 42424,
+            state: RoomState::Connected { relay: true },
+            own_ip: None,
+            participants: Vec::new(),
+            peer_paths: HashMap::new(),
+            peer_pings: HashMap::new(),
+            log: VecDeque::new(),
+        };
+        let peer = PeerView {
+            name: "WIN-TEST".into(),
+            ip: "10.240.119.198".into(),
+            tag: [7; nuvia_protocol::PEER_TAG_LEN],
+        };
+
+        mark_participants_online(&mut entry, std::slice::from_ref(&peer));
+        assert_eq!(peer_path(&entry, &peer.tag), Some(false));
+
+        entry.peer_paths.insert(peer.tag, (true, Instant::now()));
+        mark_participants_online(&mut entry, std::slice::from_ref(&peer));
+        assert_eq!(peer_path(&entry, &peer.tag), Some(true));
+    }
 
     #[test]
     fn stored_rooms_roundtrip() {
