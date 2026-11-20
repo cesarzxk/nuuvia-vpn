@@ -202,6 +202,10 @@ pub fn section(ui: &mut Ui, title: &str, subtitle: &str) {
 }
 
 pub fn primary_button(ui: &mut Ui, text: &str, enabled: bool) -> Response {
+    primary_button_sized(ui, text, enabled, ui.available_width())
+}
+
+pub fn primary_button_sized(ui: &mut Ui, text: &str, enabled: bool, width: f32) -> Response {
     let button = egui::Button::new(
         RichText::new(text)
             .font(semibold(16.0))
@@ -215,7 +219,7 @@ pub fn primary_button(ui: &mut Ui, text: &str, enabled: bool) -> Response {
     .fill(if enabled { ACCENT } else { CARD_2 })
     .stroke(Stroke::new(1.0_f32, if enabled { ACCENT } else { BORDER }))
     .rounding(Rounding::same(12.0))
-    .min_size(Vec2::new(ui.available_width(), 48.0));
+    .min_size(Vec2::new(width, 48.0));
     ui.add_enabled(enabled, button)
 }
 
@@ -265,6 +269,39 @@ pub fn segmented<T: Copy + PartialEq>(ui: &mut Ui, value: &mut T, options: &[(T,
             .stroke(Stroke::new(1.0_f32, if selected { ACCENT } else { BORDER }))
             .rounding(Rounding::same(9.0))
             .min_size(Vec2::new(0.0, 34.0));
+            if ui.add(button).clicked() {
+                *value = *option;
+            }
+        }
+    });
+}
+
+/// Like [`segmented`], but the buttons divide the available width evenly so the
+/// control's right edge lines up with tables and full-width buttons.
+pub fn segmented_fill<T: Copy + PartialEq>(
+    ui: &mut Ui,
+    value: &mut T,
+    options: &[(T, &str)],
+    total_width: f32,
+) {
+    ui.horizontal(|ui| {
+        let spacing = 6.0;
+        ui.spacing_mut().item_spacing.x = spacing;
+        let count = options.len() as f32;
+        let width = ((total_width - spacing * (count - 1.0)) / count).max(40.0);
+        for (option, label) in options {
+            let selected = *value == *option;
+            let button = egui::Button::new(RichText::new(*label).font(semibold(9.5)).color(
+                if selected {
+                    Color32::from_rgb(3, 18, 13)
+                } else {
+                    TEXT
+                },
+            ))
+            .fill(if selected { ACCENT } else { CARD_2 })
+            .stroke(Stroke::new(1.0_f32, if selected { ACCENT } else { BORDER }))
+            .rounding(Rounding::same(9.0))
+            .min_size(Vec2::new(width, 32.0));
             if ui.add(button).clicked() {
                 *value = *option;
             }
