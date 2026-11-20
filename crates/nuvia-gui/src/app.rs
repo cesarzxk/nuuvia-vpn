@@ -11,6 +11,7 @@ use eframe::egui::{
 use nuvia_core::firewall::{FirewallMode, FirewallProfile, FirewallRuleProtocol, FirewallRuleView};
 use nuvia_core::tunnel::DiscoveryRoutes;
 use nuvia_core::Identity;
+use nuvia_protocol::PublicRoom;
 use serde::{Deserialize, Serialize};
 
 use crate::apps::{self, ListeningApp};
@@ -64,6 +65,7 @@ impl RoomState {
 struct RoomEntry {
     name: String,
     password: String,
+    public: bool,
     tap_name: String,
     bind_port: u16,
     state: RoomState,
@@ -78,6 +80,7 @@ struct RoomEntry {
 struct PendingAdd {
     room: String,
     password: String,
+    public: bool,
     tap_name: String,
     bind_port: u16,
 }
@@ -177,10 +180,16 @@ struct StoredRooms {
     firewall: Option<String>,
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredRoom {
     name: String,
     password: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    public: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     firewall: Option<String>,
 }
@@ -201,10 +210,16 @@ pub struct NuviaApp {
 
     new_name: String,
     new_password: String,
+    new_public: bool,
     show_password: bool,
     show_add: bool,
     add_mode: AddMode,
     focus_add: bool,
+    focus_password: bool,
+    public_rooms: Vec<PublicRoom>,
+    public_rooms_error: Option<String>,
+    public_rooms_loading: bool,
+    public_rooms_refresh_at: Option<Instant>,
 
     identity_path: PathBuf,
     identity_public: Option<String>,
@@ -280,9 +295,7 @@ impl NuviaApp {
                             }
                         });
                         let name = saved.name.trim().to_string();
-                        if name.is_empty()
-                            || saved.password.is_empty()
-                            || rooms.iter().any(|room: &RoomEntry| room.name == name)
+                        if name.is_empty() || rooms.iter().any(|room: &RoomEntry| room.name == name)
                         {
                             continue;
                         }
@@ -290,6 +303,7 @@ impl NuviaApp {
                         rooms.push(RoomEntry {
                             name,
                             password: saved.password,
+                            public: saved.public,
                             tap_name,
                             bind_port,
                             state: RoomState::Stopped,
@@ -321,10 +335,16 @@ impl NuviaApp {
             expanded_room: None,
             new_name: String::new(),
             new_password: String::new(),
+            new_public: false,
             show_password: false,
             show_add: false,
             add_mode: AddMode::Create,
             focus_add: false,
+            focus_password: false,
+            public_rooms: Vec::new(),
+            public_rooms_error: None,
+            public_rooms_loading: false,
+            public_rooms_refresh_at: None,
             identity_path,
             identity_public,
             identity_name,
@@ -359,6 +379,7 @@ impl NuviaApp {
                 .map(|room| StoredRoom {
                     name: room.name.clone(),
                     password: room.password.clone(),
+                    public: room.public,
                     firewall: room.firewall.as_ref().map(ToString::to_string),
                 })
                 .collect(),
@@ -402,9 +423,26 @@ impl NuviaApp {
         self.error_room = None;
         self.new_name.clear();
         self.new_password.clear();
+        self.new_public = false;
+        self.show_password = false;
+        self.focus_password = false;
+        self.public_rooms.clear();
+        self.public_rooms_error = None;
+        self.public_rooms_loading = false;
+        self.public_rooms_refresh_at = (mode == AddMode::Join).then(std::time::Instant::now);
         self.add_mode = mode;
         self.show_add = true;
         self.focus_add = true;
+    }
+
+    fn refresh_public_rooms(&mut self) {
+        if self.public_rooms_loading {
+            return;
+        }
+        self.public_rooms_loading = true;
+        self.public_rooms_error = None;
+        self.public_rooms_refresh_at = Some(Instant::now() + Duration::from_secs(10));
+        self.backend.refresh_public_rooms();
     }
 
     /// Starts a room join. The room is only added to the list (and saved)
@@ -424,10 +462,6 @@ impl NuviaApp {
             self.error = Some(t.err_enter_room_name.into());
             return;
         }
-        if password.is_empty() {
-            self.error = Some(t.err_enter_password.into());
-            return;
-        }
         if self.rooms.iter().any(|room| room.name == name) {
             self.error = Some(t.err_room_exists.into());
             return;
@@ -442,6 +476,7 @@ impl NuviaApp {
             identity_path: self.identity_path.clone(),
             lang: self.language,
             create: matches!(self.add_mode, AddMode::Create),
+            public: self.new_public,
             firewall: self.firewall_default.clone(),
         };
 
@@ -450,6 +485,7 @@ impl NuviaApp {
                 self.pending_add = Some(PendingAdd {
                     room: name,
                     password,
+                    public: self.new_public,
                     tap_name,
                     bind_port,
                 });
@@ -529,11 +565,12 @@ impl NuviaApp {
         }
         self.error = None;
         self.error_room = None;
-        let (name, password, tap_name, bind_port) = {
+        let (name, password, public, tap_name, bind_port) = {
             let room = &self.rooms[index];
             (
                 room.name.clone(),
                 room.password.clone(),
+                room.public,
                 room.tap_name.clone(),
                 room.bind_port,
             )
@@ -551,6 +588,7 @@ impl NuviaApp {
             identity_path: self.identity_path.clone(),
             lang: self.language,
             create: true,
+            public,
             firewall: self.effective_firewall(index),
         };
         match self.backend.join(config) {
@@ -674,6 +712,7 @@ impl NuviaApp {
                             let mut entry = RoomEntry {
                                 name: pending.room,
                                 password: pending.password,
+                                public: pending.public,
                                 tap_name: pending.tap_name,
                                 bind_port: pending.bind_port,
                                 state: RoomState::Connecting,
@@ -754,7 +793,17 @@ impl NuviaApp {
                         .is_some_and(|pending| pending.room == room)
                     {
                         self.pending_add = None;
-                        self.error = Some(format!("{room}: {message}"));
+                        let detail = if message.contains("room not found")
+                            || message.contains("404")
+                        {
+                            t.err_room_not_found
+                        } else if message.contains("invalid room token") || message.contains("403")
+                        {
+                            t.err_wrong_password
+                        } else {
+                            message.as_str()
+                        };
+                        self.error = Some(format!("{room}: {detail}"));
                         self.error_room = Some(room);
                         continue;
                     }
@@ -794,6 +843,12 @@ impl NuviaApp {
                         }
                     }
                 }
+                Event::PublicRooms { rooms, error } => {
+                    self.public_rooms = rooms;
+                    self.public_rooms_error = error;
+                    self.public_rooms_loading = false;
+                    self.public_rooms_refresh_at = Some(Instant::now() + Duration::from_secs(10));
+                }
             }
         }
 
@@ -807,6 +862,12 @@ impl NuviaApp {
                     refresh_room_summary(entry);
                 }
             }
+            ctx.request_repaint_after(Duration::from_secs(1));
+        }
+        if self.pending_add.is_some() || self.public_rooms_loading {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
+        if self.show_add && self.add_mode == AddMode::Join {
             ctx.request_repaint_after(Duration::from_secs(1));
         }
     }
@@ -1201,10 +1262,20 @@ impl NuviaApp {
             return;
         }
 
+        if self.add_mode == AddMode::Join
+            && self
+                .public_rooms_refresh_at
+                .is_some_and(|at| Instant::now() >= at)
+        {
+            self.refresh_public_rooms();
+        }
+
         let mut open = true;
         let mut close = false;
+        let mut public_action: Option<(String, bool)> = None;
         let t = self.language.strings();
         let pending = self.pending_add.is_some();
+        let creating = matches!(self.add_mode, AddMode::Create);
         let (title, kicker, hint, action) = match self.add_mode {
             AddMode::Create => (
                 t.create_title,
@@ -1218,6 +1289,8 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
+            .vscroll(true)
+            .max_height(500.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -24.0])
             .frame(
                 Frame::none()
@@ -1236,6 +1309,138 @@ impl NuviaApp {
                 ui.label(RichText::new(hint).size(11.0).color(theme::MUTED));
                 ui.add_space(10.0);
 
+                if !creating {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(t.public_rooms)
+                                .font(theme::semibold(10.0))
+                                .color(theme::ACCENT),
+                        );
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui
+                                .add_enabled(
+                                    !self.public_rooms_loading,
+                                    egui::Button::new(
+                                        RichText::new(t.public_refresh)
+                                            .font(theme::semibold(8.5))
+                                            .color(theme::TEXT),
+                                    )
+                                    .min_size(Vec2::new(0.0, 22.0)),
+                                )
+                                .clicked()
+                            {
+                                self.refresh_public_rooms();
+                            }
+                        });
+                    });
+                    ui.label(
+                        RichText::new(t.public_rooms_hint)
+                            .size(9.5)
+                            .color(theme::MUTED),
+                    );
+                    ui.add_space(4.0);
+                    if self.public_rooms_loading && self.public_rooms.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(
+                                RichText::new(t.public_searching)
+                                    .size(10.0)
+                                    .color(theme::MUTED),
+                            );
+                        });
+                    } else if let Some(error) = &self.public_rooms_error {
+                        ui.label(RichText::new(t.public_error).size(10.0).color(theme::RED))
+                            .on_hover_text(error);
+                    } else if self.public_rooms.is_empty() {
+                        ui.label(RichText::new(t.public_empty).size(10.0).color(theme::MUTED));
+                    } else {
+                        ScrollArea::vertical()
+                            .id_salt("public-rooms")
+                            .max_height(140.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                let row_width = ui.available_width();
+                                for room in &self.public_rooms {
+                                    let full = room.peers >= room.max_peers;
+                                    let button_width = 58.0;
+                                    let spacing = ui.spacing().item_spacing.x;
+                                    let text_width =
+                                        (row_width - button_width - spacing).max(100.0);
+                                    ui.horizontal(|ui| {
+                                        ui.allocate_ui_with_layout(
+                                            Vec2::new(text_width, 34.0),
+                                            Layout::top_down(Align::Min),
+                                            |ui| {
+                                                ui.set_min_width(text_width);
+                                                ui.horizontal(|ui| {
+                                                    ui.add(
+                                                        egui::Label::new(
+                                                            RichText::new(&room.name)
+                                                                .font(theme::semibold(11.5))
+                                                                .color(theme::TEXT),
+                                                        )
+                                                        .truncate(),
+                                                    );
+                                                    let (badge, color) = if room.has_password {
+                                                        (t.public_locked, theme::AMBER)
+                                                    } else {
+                                                        (t.public_open, theme::ACCENT)
+                                                    };
+                                                    theme::badge(ui, badge, color);
+                                                });
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "{}/{}",
+                                                        room.peers, room.max_peers
+                                                    ))
+                                                    .size(9.0)
+                                                    .color(theme::MUTED),
+                                                );
+                                            },
+                                        );
+                                        if full {
+                                            ui.add_enabled(
+                                                false,
+                                                egui::Button::new(
+                                                    RichText::new(t.public_full)
+                                                        .font(theme::semibold(8.5))
+                                                        .color(theme::MUTED),
+                                                )
+                                                .min_size(Vec2::new(button_width, 22.0)),
+                                            );
+                                        } else if ui
+                                            .add_sized(
+                                                [button_width, 22.0],
+                                                egui::Button::new(
+                                                    RichText::new(t.join_now)
+                                                        .font(theme::semibold(9.0))
+                                                        .color(theme::ACCENT),
+                                                )
+                                                .fill(theme::CARD_3)
+                                                .stroke(Stroke::new(1.0_f32, theme::BORDER)),
+                                            )
+                                            .clicked()
+                                        {
+                                            public_action =
+                                                Some((room.name.clone(), room.has_password));
+                                        }
+                                    });
+                                    ui.add_space(2.0);
+                                }
+                            });
+                    }
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(t.join_by_name)
+                            .font(theme::semibold(10.0))
+                            .color(theme::ACCENT),
+                    );
+                    ui.add_space(4.0);
+                }
+
                 ui.label(
                     RichText::new(t.field_room_name)
                         .font(theme::semibold(9.0))
@@ -1245,6 +1450,7 @@ impl NuviaApp {
                     [320.0, 36.0],
                     TextEdit::singleline(&mut self.new_name)
                         .hint_text(t.hint_room_name)
+                        .char_limit(64)
                         .text_color(theme::TEXT)
                         .background_color(theme::CARD_2)
                         .interactive(!pending)
@@ -1257,20 +1463,28 @@ impl NuviaApp {
 
                 ui.add_space(2.0);
                 ui.label(
-                    RichText::new(t.field_password)
-                        .font(theme::semibold(9.0))
-                        .color(theme::MUTED),
+                    RichText::new(if creating {
+                        t.field_password_optional
+                    } else {
+                        t.field_password
+                    })
+                    .font(theme::semibold(9.0))
+                    .color(theme::MUTED),
                 );
                 let password = ui.add_sized(
                     [320.0, 36.0],
                     TextEdit::singleline(&mut self.new_password)
                         .password(!self.show_password)
-                        .hint_text(t.hint_password)
+                        .hint_text(t.hint_password_optional)
                         .text_color(theme::TEXT)
                         .background_color(theme::CARD_2)
                         .interactive(!pending)
                         .vertical_align(Align::Center),
                 );
+                if self.focus_password {
+                    password.request_focus();
+                    self.focus_password = false;
+                }
                 ui.checkbox(
                     &mut self.show_password,
                     RichText::new(t.show_password)
@@ -1278,10 +1492,31 @@ impl NuviaApp {
                         .color(theme::MUTED),
                 );
 
-                let enabled =
-                    !pending && !self.new_name.trim().is_empty() && !self.new_password.is_empty();
+                if creating {
+                    ui.add_space(2.0);
+                    ui.checkbox(
+                        &mut self.new_public,
+                        RichText::new(t.create_public).size(11.0).color(theme::TEXT),
+                    );
+                    ui.label(
+                        RichText::new(t.create_public_hint)
+                            .size(9.5)
+                            .color(theme::MUTED),
+                    );
+                    if self.new_password.is_empty() {
+                        ui.add_space(2.0);
+                        ui.label(
+                            RichText::new(t.warn_no_password)
+                                .size(9.5)
+                                .color(theme::AMBER),
+                        );
+                    }
+                }
+
+                let enabled = !pending && !self.new_name.trim().is_empty();
                 let enter = !pending
-                    && password.lost_focus()
+                    && enabled
+                    && (name.lost_focus() || password.lost_focus())
                     && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 ui.add_space(4.0);
                 let submitted =
@@ -1315,6 +1550,18 @@ impl NuviaApp {
                         });
                 }
             });
+        if let Some((name, has_password)) = public_action {
+            self.new_name = name;
+            self.new_password.clear();
+            self.new_public = true;
+            self.show_password = false;
+            self.error = None;
+            if has_password {
+                self.focus_password = true;
+            } else {
+                self.join();
+            }
+        }
         self.show_add = open && !close;
         if !self.show_add {
             if let Some(pending) = self.pending_add.take() {
@@ -2614,6 +2861,7 @@ mod tests {
         let mut entry = RoomEntry {
             name: "casa".into(),
             password: "casa".into(),
+            public: false,
             tap_name: "nuvia-vpn0".into(),
             bind_port: 42424,
             state: RoomState::Connected { relay: true },
@@ -2748,11 +2996,13 @@ mod tests {
                 StoredRoom {
                     name: "casa".into(),
                     password: "segredo".into(),
+                    public: true,
                     firewall: Some("games".into()),
                 },
                 StoredRoom {
                     name: "lan".into(),
-                    password: "outra".into(),
+                    password: String::new(),
+                    public: false,
                     firewall: None,
                 },
             ],
@@ -2765,8 +3015,11 @@ mod tests {
         assert_eq!(parsed.rooms.len(), 2);
         assert_eq!(parsed.rooms[0].name, "casa");
         assert_eq!(parsed.rooms[0].password, "segredo");
+        assert!(parsed.rooms[0].public);
         assert_eq!(parsed.rooms[0].firewall.as_deref(), Some("games"));
         assert_eq!(parsed.rooms[1].name, "lan");
+        assert!(parsed.rooms[1].password.is_empty());
+        assert!(!parsed.rooms[1].public);
         assert_eq!(parsed.rooms[1].firewall, None);
         assert_eq!(parsed.firewall.as_deref(), Some("block"));
     }
