@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-: "${VERSION:=1.2.4}"
+: "${VERSION:=1.3.0}"
 TARGET="x86_64-pc-windows-gnu"
 OUT="$ROOT/dist/windows"
 DRIVER_SRC="${DRIVER_SRC:-/tmp/nuvia-build/driver/amd64}"
