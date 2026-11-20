@@ -8,6 +8,7 @@ use eframe::egui::{
     self, Align, Color32, Context, FontFamily, FontId, Frame, Layout, Margin, RichText, Rounding,
     ScrollArea, Stroke, TextEdit, Ui, Vec2, ViewportCommand,
 };
+use nuvia_core::firewall::{FirewallMode, FirewallProfile};
 use nuvia_core::tunnel::DiscoveryRoutes;
 use nuvia_core::Identity;
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,7 @@ struct RoomEntry {
     peer_paths: HashMap<[u8; nuvia_protocol::PEER_TAG_LEN], (bool, Instant)>,
     peer_pings: HashMap<[u8; nuvia_protocol::PEER_TAG_LEN], (u32, Instant)>,
     log: VecDeque<String>,
+    firewall: Option<FirewallProfile>,
 }
 
 struct PendingAdd {
@@ -79,24 +81,36 @@ struct PendingAdd {
     bind_port: u16,
 }
 
+struct FirewallEdit {
+    room: String,
+    inherit: bool,
+    mode: FirewallMode,
+    rules: String,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct StoredRooms {
     #[serde(default)]
     rooms: Vec<StoredRoom>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     language: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    firewall: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredRoom {
     name: String,
     password: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    firewall: Option<String>,
 }
 
 enum Action {
     ToggleExpand(usize),
     Disconnect(usize),
     Leave(usize),
+    OpenFirewall(usize),
     CopiedIp,
 }
 
@@ -125,6 +139,8 @@ pub struct NuviaApp {
     discovery: Option<DiscoveryRoutes>,
     active_room: Option<String>,
     pending_add: Option<PendingAdd>,
+    firewall_default: FirewallProfile,
+    firewall_edit: Option<FirewallEdit>,
 
     tray: Tray,
     quitting: Arc<AtomicBool>,
@@ -152,6 +168,7 @@ impl NuviaApp {
         let rooms_path = identity_path.with_file_name("rooms.toml");
         let mut backend = Backend::new().expect("tokio runtime");
         let mut rooms = Vec::new();
+        let mut firewall_default = FirewallProfile::default();
         if let Ok(text) = std::fs::read_to_string(&rooms_path) {
             match toml::from_str::<StoredRooms>(&text) {
                 Ok(stored) => {
@@ -160,7 +177,24 @@ impl NuviaApp {
                             language = Lang::from_code(code).unwrap_or(language);
                         }
                     }
+                    if let Some(value) = stored.firewall.as_deref() {
+                        match value.parse::<FirewallProfile>() {
+                            Ok(profile) => firewall_default = profile,
+                            Err(error) => {
+                                tracing::warn!(%error, value, "invalid global firewall profile")
+                            }
+                        }
+                    }
                     for saved in stored.rooms {
+                        let firewall = saved.firewall.as_deref().and_then(|value| {
+                            match value.parse::<FirewallProfile>() {
+                                Ok(profile) => Some(profile),
+                                Err(error) => {
+                                    tracing::warn!(%error, value, "invalid room firewall profile");
+                                    None
+                                }
+                            }
+                        });
                         let name = saved.name.trim().to_string();
                         if name.is_empty()
                             || saved.password.is_empty()
@@ -180,6 +214,7 @@ impl NuviaApp {
                             peer_paths: HashMap::new(),
                             peer_pings: HashMap::new(),
                             log: VecDeque::new(),
+                            firewall,
                         });
                     }
                 }
@@ -215,6 +250,8 @@ impl NuviaApp {
             discovery: None,
             active_room: None,
             pending_add: None,
+            firewall_default,
+            firewall_edit: None,
             tray,
             quitting,
             error: None,
@@ -231,9 +268,11 @@ impl NuviaApp {
                 .map(|room| StoredRoom {
                     name: room.name.clone(),
                     password: room.password.clone(),
+                    firewall: room.firewall.as_ref().map(ToString::to_string),
                 })
                 .collect(),
             language: Some(self.language.code().to_string()),
+            firewall: Some(self.firewall_default.to_string()),
         };
         let Ok(text) = toml::to_string_pretty(&stored) else {
             return;
@@ -312,6 +351,7 @@ impl NuviaApp {
             identity_path: self.identity_path.clone(),
             lang: self.language,
             create: matches!(self.add_mode, AddMode::Create),
+            firewall: self.firewall_default.clone(),
         };
 
         match self.backend.join(config) {
@@ -420,6 +460,7 @@ impl NuviaApp {
             identity_path: self.identity_path.clone(),
             lang: self.language,
             create: true,
+            firewall: self.effective_firewall(index),
         };
         match self.backend.join(config) {
             Ok(()) => {
@@ -437,6 +478,39 @@ impl NuviaApp {
                 self.error = Some(format!("{error:#}"));
             }
         }
+    }
+
+    fn effective_firewall(&self, index: usize) -> FirewallProfile {
+        self.rooms
+            .get(index)
+            .and_then(|room| room.firewall.clone())
+            .unwrap_or_else(|| self.firewall_default.clone())
+    }
+
+    fn apply_global_firewall(&self) {
+        for room in &self.rooms {
+            let effective = room
+                .firewall
+                .clone()
+                .unwrap_or_else(|| self.firewall_default.clone());
+            self.backend.set_firewall(&room.name, effective);
+        }
+    }
+
+    fn open_firewall(&mut self, index: usize) {
+        let Some(room) = self.rooms.get(index) else {
+            return;
+        };
+        let profile = room
+            .firewall
+            .clone()
+            .unwrap_or_else(|| self.firewall_default.clone());
+        self.firewall_edit = Some(FirewallEdit {
+            room: room.name.clone(),
+            inherit: room.firewall.is_none(),
+            mode: profile.mode,
+            rules: profile.rules,
+        });
     }
 
     fn activate(&mut self, index: usize) {
@@ -514,6 +588,7 @@ impl NuviaApp {
                                 peer_paths: HashMap::new(),
                                 peer_pings: HashMap::new(),
                                 log,
+                                firewall: None,
                             };
                             mark_participants_online(&mut entry, &peers);
                             entry.participants = peers;
@@ -877,6 +952,8 @@ impl NuviaApp {
                         )
                         .truncate(),
                     );
+                    let (fw_text, fw_color) = firewall_badge(room.firewall.as_ref(), t);
+                    theme::badge(ui, &fw_text, fw_color);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         theme::badge(ui, state_label, state_color);
                     });
@@ -910,6 +987,11 @@ impl NuviaApp {
                 actions.push(Action::Disconnect(index));
                 ui.close_menu();
             }
+            if ui.button(t.context_firewall).clicked() {
+                actions.push(Action::OpenFirewall(index));
+                ui.close_menu();
+            }
+            ui.separator();
             if ui.button(t.context_leave).clicked() {
                 actions.push(Action::Leave(index));
                 ui.close_menu();
@@ -1151,6 +1233,8 @@ impl NuviaApp {
             .collapsible(false)
             .resizable(false)
             .default_width(300.0)
+            .vscroll(true)
+            .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -16.0])
             .frame(
                 Frame::none()
@@ -1202,6 +1286,60 @@ impl NuviaApp {
                 }
 
                 ui.add_space(12.0);
+                theme::section(ui, t.section_firewall, t.firewall_global_hint);
+                let mut global_mode = self.firewall_default.mode;
+                theme::segmented(
+                    ui,
+                    &mut global_mode,
+                    &[
+                        (FirewallMode::All, t.firewall_all),
+                        (FirewallMode::Games, t.firewall_games),
+                        (FirewallMode::Block, t.firewall_block),
+                        (FirewallMode::Custom, t.firewall_custom),
+                    ],
+                );
+                let mut global_rules = self.firewall_default.rules.clone();
+                if global_mode == FirewallMode::Custom {
+                    ui.add_space(4.0);
+                    ui.add_sized(
+                        [300.0, 34.0],
+                        TextEdit::singleline(&mut global_rules)
+                            .hint_text(t.firewall_rules_hint)
+                            .text_color(theme::TEXT)
+                            .background_color(theme::CARD_2)
+                            .vertical_align(Align::Center),
+                    );
+                    ui.label(
+                        RichText::new(t.firewall_rules_hint)
+                            .size(10.0)
+                            .color(theme::MUTED),
+                    );
+                }
+                let candidate = FirewallProfile {
+                    mode: global_mode,
+                    rules: if global_mode == FirewallMode::Custom {
+                        global_rules
+                    } else {
+                        String::new()
+                    },
+                };
+                let valid = candidate.validate();
+                if let Err(error) = &valid {
+                    ui.label(
+                        RichText::new(render(t.firewall_invalid, &[("error", error)]))
+                            .size(10.0)
+                            .color(theme::RED),
+                    );
+                }
+                ui.add_space(4.0);
+                if theme::primary_button(ui, t.firewall_apply, valid.is_ok()).clicked() {
+                    self.firewall_default = candidate;
+                    self.save_rooms();
+                    self.apply_global_firewall();
+                    self.toast(t.firewall_updated);
+                }
+
+                ui.add_space(12.0);
                 theme::section(ui, t.section_language, t.language_hint);
                 let mut language = self.language;
                 theme::segmented(
@@ -1233,6 +1371,156 @@ impl NuviaApp {
             });
         self.show_settings = open;
     }
+    fn firewall_window(&mut self, ctx: &Context) {
+        let Some(mut edit) = self.firewall_edit.take() else {
+            return;
+        };
+        let t = self.language.strings();
+        let mut open = true;
+        let mut close = false;
+        let mut apply = false;
+
+        egui::Window::new(format!("{} — {}", t.firewall_title, edit.room))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(320.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, -16.0])
+            .frame(
+                Frame::none()
+                    .fill(theme::CARD)
+                    .rounding(Rounding::same(14.0))
+                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
+                    .inner_margin(Margin::same(18.0)),
+            )
+            .show(ctx, |ui| {
+                ui.set_width(320.0);
+                ui.label(
+                    RichText::new(t.section_firewall)
+                        .font(theme::semibold(10.0))
+                        .color(theme::ACCENT),
+                );
+                ui.checkbox(&mut edit.inherit, t.firewall_use_global);
+                if edit.inherit {
+                    ui.label(
+                        RichText::new(t.firewall_inherit_hint)
+                            .size(11.0)
+                            .color(theme::MUTED),
+                    );
+                    let global_label = match self.firewall_default.mode {
+                        FirewallMode::All => t.firewall_all,
+                        FirewallMode::Games => t.firewall_games,
+                        FirewallMode::Block => t.firewall_block,
+                        FirewallMode::Custom => t.firewall_custom,
+                    };
+                    ui.label(
+                        RichText::new(format!("{}: {}", t.firewall_global, global_label))
+                            .size(10.0)
+                            .color(theme::MUTED),
+                    );
+                } else {
+                    ui.add_space(4.0);
+                    theme::segmented(
+                        ui,
+                        &mut edit.mode,
+                        &[
+                            (FirewallMode::All, t.firewall_all),
+                            (FirewallMode::Games, t.firewall_games),
+                            (FirewallMode::Block, t.firewall_block),
+                            (FirewallMode::Custom, t.firewall_custom),
+                        ],
+                    );
+                    if edit.mode == FirewallMode::Custom {
+                        ui.add_space(4.0);
+                        ui.add_sized(
+                            [320.0, 34.0],
+                            TextEdit::singleline(&mut edit.rules)
+                                .hint_text(t.firewall_rules_hint)
+                                .text_color(theme::TEXT)
+                                .background_color(theme::CARD_2)
+                                .vertical_align(Align::Center),
+                        );
+                        ui.label(
+                            RichText::new(t.firewall_rules_hint)
+                                .size(10.0)
+                                .color(theme::MUTED),
+                        );
+                    }
+                }
+
+                let candidate = if edit.inherit {
+                    None
+                } else {
+                    Some(FirewallProfile {
+                        mode: edit.mode,
+                        rules: edit.rules.clone(),
+                    })
+                };
+                let valid = candidate
+                    .as_ref()
+                    .map_or(Ok(()), |profile| profile.validate());
+                if let Err(error) = &valid {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(render(t.firewall_invalid, &[("error", error)]))
+                            .size(10.0)
+                            .color(theme::RED),
+                    );
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            valid.is_ok(),
+                            egui::Button::new(
+                                RichText::new(t.firewall_apply)
+                                    .font(theme::semibold(12.0))
+                                    .color(if valid.is_ok() {
+                                        theme::TEXT
+                                    } else {
+                                        theme::MUTED
+                                    }),
+                            ),
+                        )
+                        .clicked()
+                    {
+                        apply = true;
+                    }
+                    if ui.button(t.close).clicked() {
+                        close = true;
+                    }
+                });
+            });
+
+        if apply {
+            let profile = if edit.inherit {
+                None
+            } else {
+                Some(FirewallProfile {
+                    mode: edit.mode,
+                    rules: edit.rules,
+                })
+            };
+            if let Some(room) = self.rooms.iter_mut().find(|room| room.name == edit.room) {
+                room.firewall = profile;
+                let effective = room
+                    .firewall
+                    .clone()
+                    .unwrap_or_else(|| self.firewall_default.clone());
+                self.backend.set_firewall(&room.name, effective);
+            }
+            self.save_rooms();
+            self.toast(t.firewall_updated);
+            self.firewall_edit = None;
+            return;
+        }
+        if close || !open {
+            self.firewall_edit = None;
+        } else {
+            self.firewall_edit = Some(edit);
+        }
+    }
+
     fn about_window(&mut self, ctx: &Context) {
         if !self.show_about {
             return;
@@ -1384,6 +1672,7 @@ impl eframe::App for NuviaApp {
                                 }
                                 Action::Disconnect(index) => self.disconnect(index),
                                 Action::Leave(index) => self.leave(index),
+                                Action::OpenFirewall(index) => self.open_firewall(index),
                                 Action::CopiedIp => {
                                     self.toast(self.language.strings().toast_ip_copied)
                                 }
@@ -1399,6 +1688,7 @@ impl eframe::App for NuviaApp {
         self.settings_window(ctx);
         self.add_window(ctx);
         self.about_window(ctx);
+        self.firewall_window(ctx);
 
         if let Some((message, _)) = &self.toast {
             egui::Area::new("toast".into())
@@ -1484,6 +1774,18 @@ fn ping_color(ping: Option<u32>) -> Color32 {
         Some(ms) if ms <= 160 => theme::AMBER,
         Some(_) => theme::RED,
         None => theme::MUTED,
+    }
+}
+
+fn firewall_badge(profile: Option<&FirewallProfile>, t: &Strings) -> (String, Color32) {
+    match profile {
+        None => (format!("FW {}", t.firewall_global), theme::MUTED),
+        Some(profile) => match profile.mode {
+            FirewallMode::All => (format!("FW {}", t.firewall_all), theme::MUTED),
+            FirewallMode::Games => (format!("FW {}", t.firewall_games), theme::ACCENT),
+            FirewallMode::Block => (format!("FW {}", t.firewall_block), theme::RED),
+            FirewallMode::Custom => (format!("FW {}", t.firewall_custom), theme::PURPLE),
+        },
     }
 }
 
@@ -1650,6 +1952,7 @@ mod tests {
             peer_paths: HashMap::new(),
             peer_pings: HashMap::new(),
             log: VecDeque::new(),
+            firewall: None,
         };
         let peer = PeerView {
             name: "WIN-TEST".into(),
@@ -1672,13 +1975,16 @@ mod tests {
                 StoredRoom {
                     name: "casa".into(),
                     password: "segredo".into(),
+                    firewall: Some("games".into()),
                 },
                 StoredRoom {
                     name: "lan".into(),
                     password: "outra".into(),
+                    firewall: None,
                 },
             ],
             language: Some(Lang::Pt.code().into()),
+            firewall: Some("block".into()),
         };
         let text = toml::to_string_pretty(&stored).expect("serialize");
         let parsed: StoredRooms = toml::from_str(&text).expect("parse");
@@ -1686,6 +1992,9 @@ mod tests {
         assert_eq!(parsed.rooms.len(), 2);
         assert_eq!(parsed.rooms[0].name, "casa");
         assert_eq!(parsed.rooms[0].password, "segredo");
+        assert_eq!(parsed.rooms[0].firewall.as_deref(), Some("games"));
         assert_eq!(parsed.rooms[1].name, "lan");
+        assert_eq!(parsed.rooms[1].firewall, None);
+        assert_eq!(parsed.firewall.as_deref(), Some("block"));
     }
 }
