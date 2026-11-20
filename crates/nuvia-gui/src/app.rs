@@ -13,6 +13,7 @@ use nuvia_core::tunnel::DiscoveryRoutes;
 use nuvia_core::Identity;
 use serde::{Deserialize, Serialize};
 
+use crate::apps::{self, ListeningApp};
 use crate::backend::{self, Backend, Event, PeerView, Phase, RoomConfig};
 use crate::i18n::{render, Lang, Strings};
 use crate::theme;
@@ -143,12 +144,19 @@ impl Default for PortRow {
     }
 }
 
+#[derive(Default)]
+struct AppPicker {
+    open: bool,
+    entries: Vec<ListeningApp>,
+}
+
 struct FirewallEdit {
     room: String,
     inherit: bool,
     mode: FirewallMode,
     ports: Vec<PortRow>,
     icmp: bool,
+    apps: AppPicker,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -207,6 +215,7 @@ pub struct NuviaApp {
     firewall_global_mode: FirewallMode,
     firewall_global_ports: Vec<PortRow>,
     firewall_global_icmp: bool,
+    firewall_global_apps: AppPicker,
     firewall_edit: Option<FirewallEdit>,
 
     tray: Tray,
@@ -323,6 +332,7 @@ impl NuviaApp {
             firewall_global_mode: firewall_default.mode,
             firewall_global_ports,
             firewall_global_icmp,
+            firewall_global_apps: AppPicker::default(),
             firewall_default,
             firewall_edit: None,
             tray,
@@ -585,6 +595,7 @@ impl NuviaApp {
             mode: profile.mode,
             ports,
             icmp,
+            apps: AppPicker::default(),
         });
     }
 
@@ -1457,6 +1468,7 @@ impl NuviaApp {
                         &mut self.firewall_global_icmp,
                         "global",
                         content_width,
+                        &mut self.firewall_global_apps,
                         t,
                     )
                 } else {
@@ -1614,6 +1626,7 @@ impl NuviaApp {
                         &mut edit.icmp,
                         "room",
                         content_width,
+                        &mut edit.apps,
                         t,
                     )
                 } else {
@@ -2003,6 +2016,7 @@ fn custom_rules_editor(
     icmp: &mut bool,
     id_salt: &str,
     content_width: f32,
+    apps: &mut AppPicker,
     t: &Strings,
 ) -> Option<FirewallProfile> {
     ui.allocate_ui_with_layout(
@@ -2015,7 +2029,7 @@ fn custom_rules_editor(
                     .color(theme::ACCENT),
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.spacing_mut().item_spacing.x = 6.0;
                 let add = ui
                     .add(
                         egui::Button::new(
@@ -2029,6 +2043,40 @@ fn custom_rules_editor(
                 if add.clicked() {
                     rows.insert(0, PortRow::default());
                 }
+                let apps_button = ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new(t.firewall_apps)
+                                .font(theme::semibold(9.5))
+                                .color(if apps.open {
+                                    Color32::from_rgb(3, 18, 13)
+                                } else {
+                                    theme::ACCENT
+                                }),
+                        )
+                        .fill(if apps.open {
+                            theme::ACCENT
+                        } else {
+                            theme::CARD_2
+                        })
+                        .stroke(Stroke::new(
+                            1.0_f32,
+                            if apps.open {
+                                theme::ACCENT
+                            } else {
+                                theme::BORDER
+                            },
+                        ))
+                        .rounding(Rounding::same(9.0))
+                        .min_size(Vec2::new(48.0, 26.0)),
+                    )
+                    .on_hover_text(t.firewall_apps_hint);
+                if apps_button.clicked() {
+                    apps.open = !apps.open;
+                    if apps.open {
+                        apps.entries = apps::scan();
+                    }
+                }
             });
         },
     );
@@ -2038,6 +2086,9 @@ fn custom_rules_editor(
             .color(theme::MUTED),
     );
     ui.add_space(4.0);
+    if apps.open {
+        app_picker(ui, apps, rows, t);
+    }
 
     // The grid adds the item spacing after its last cell; trim it so the
     // table's right edge matches the segmented control and the APPLY button.
@@ -2145,6 +2196,159 @@ fn custom_rules_editor(
         );
     }
     profile
+}
+
+/// Lists processes with listening ports and imports their ports into the
+/// custom rule table.
+fn app_picker(ui: &mut Ui, picker: &mut AppPicker, rows: &mut Vec<PortRow>, t: &Strings) {
+    Frame::none()
+        .fill(theme::CARD_2)
+        .stroke(Stroke::new(1.0_f32, theme::BORDER))
+        .rounding(Rounding::same(10.0))
+        .inner_margin(Margin::same(10.0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(t.firewall_apps_section)
+                        .font(theme::semibold(10.0))
+                        .color(theme::ACCENT),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(t.firewall_apps_refresh)
+                                    .font(theme::semibold(8.5))
+                                    .color(theme::TEXT),
+                            )
+                            .min_size(Vec2::new(0.0, 22.0)),
+                        )
+                        .clicked()
+                    {
+                        picker.entries = apps::scan();
+                    }
+                });
+            });
+            ui.label(
+                RichText::new(t.firewall_apps_hint)
+                    .size(9.5)
+                    .color(theme::MUTED),
+            );
+            ui.add_space(4.0);
+            if picker.entries.is_empty() {
+                ui.label(
+                    RichText::new(t.firewall_apps_empty)
+                        .size(10.0)
+                        .color(theme::MUTED),
+                );
+            } else {
+                ScrollArea::vertical()
+                    .max_height(168.0)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        let row_width = ui.available_width();
+                        for app in &picker.entries {
+                            let button_width = 46.0;
+                            let spacing = ui.spacing().item_spacing.x;
+                            let text_width = (row_width - button_width - spacing).max(100.0);
+                            ui.horizontal(|ui| {
+                                ui.allocate_ui_with_layout(
+                                    Vec2::new(text_width, 30.0),
+                                    Layout::top_down(Align::Min),
+                                    |ui| {
+                                        ui.set_min_width(text_width);
+                                        ui.add(
+                                            egui::Label::new(
+                                                RichText::new(&app.process)
+                                                    .font(theme::semibold(10.5))
+                                                    .color(theme::TEXT),
+                                            )
+                                            .truncate(),
+                                        );
+                                        ui.add(
+                                            egui::Label::new(
+                                                RichText::new(app.ports_label())
+                                                    .size(9.0)
+                                                    .color(theme::MUTED),
+                                            )
+                                            .truncate(),
+                                        );
+                                    },
+                                );
+                                if ui
+                                    .add_sized(
+                                        [button_width, 22.0],
+                                        egui::Button::new(
+                                            RichText::new(t.firewall_app_add)
+                                                .font(theme::semibold(9.0))
+                                                .color(theme::ACCENT),
+                                        )
+                                        .fill(theme::CARD_3)
+                                        .stroke(Stroke::new(1.0_f32, theme::BORDER)),
+                                    )
+                                    .clicked()
+                                {
+                                    add_app_ports(rows, app);
+                                }
+                            });
+                            ui.add_space(2.0);
+                        }
+                    });
+            }
+        });
+    ui.add_space(4.0);
+}
+
+/// Adds the ports an app listens on as individual rules at the top of the
+/// table, skipping protocols already covered by an existing row.
+fn add_app_ports(rows: &mut Vec<PortRow>, app: &ListeningApp) -> usize {
+    let mut batch = Vec::new();
+    for entry in &app.ports {
+        let mut need_tcp = entry.tcp;
+        let mut need_udp = entry.udp;
+        for row in rows.iter().chain(batch.iter()) {
+            if !row_covers_port(row, entry.port) {
+                continue;
+            }
+            match row.protocol {
+                PortChoice::Both => {
+                    need_tcp = false;
+                    need_udp = false;
+                }
+                PortChoice::Tcp => need_tcp = false,
+                PortChoice::Udp => need_udp = false,
+            }
+        }
+        if !need_tcp && !need_udp {
+            continue;
+        }
+        let protocol = match (need_tcp, need_udp) {
+            (true, true) => PortChoice::Both,
+            (true, false) => PortChoice::Tcp,
+            (false, true) => PortChoice::Udp,
+            (false, false) => continue,
+        };
+        batch.push(PortRow {
+            start: entry.port.to_string(),
+            end: entry.port.to_string(),
+            protocol,
+        });
+    }
+    batch.sort_by_key(|row| row.start.parse::<u16>().unwrap_or(u16::MAX));
+    let added = batch.len();
+    rows.splice(0..0, batch);
+    added
+}
+
+fn row_covers_port(row: &PortRow, port: u16) -> bool {
+    let start = row.start.trim().parse::<u16>().ok();
+    let end = match row.end.trim() {
+        "" | "=" => start,
+        value => value.parse::<u16>().ok(),
+    };
+    matches!((start, end), (Some(start), Some(end)) if start <= port && port <= end)
 }
 
 fn firewall_mode_desc(mode: FirewallMode, t: &Strings) -> &'static str {
@@ -2333,6 +2537,53 @@ mod tests {
         entry.peer_paths.insert(peer.tag, (true, Instant::now()));
         mark_participants_online(&mut entry, std::slice::from_ref(&peer));
         assert_eq!(peer_path(&entry, &peer.tag), Some(true));
+    }
+
+    #[test]
+    fn importing_app_ports_adds_missing_protocols_only() {
+        use crate::apps::ListeningPort;
+
+        let mut rows = vec![PortRow {
+            start: "25565".into(),
+            end: "25565".into(),
+            protocol: PortChoice::Tcp,
+        }];
+        let app = ListeningApp {
+            pid: 7,
+            process: "game".into(),
+            ports: vec![
+                ListeningPort {
+                    port: 25565,
+                    tcp: true,
+                    udp: true,
+                },
+                ListeningPort {
+                    port: 19132,
+                    tcp: false,
+                    udp: true,
+                },
+            ],
+        };
+
+        assert_eq!(add_app_ports(&mut rows, &app), 2);
+        assert_eq!(rows[0].start, "19132");
+        assert_eq!(rows[0].protocol, PortChoice::Udp);
+        assert_eq!(rows[1].start, "25565");
+        assert_eq!(rows[1].protocol, PortChoice::Udp);
+        assert_eq!(rows[2].start, "25565");
+        assert_eq!(rows[2].protocol, PortChoice::Tcp);
+        assert_eq!(add_app_ports(&mut rows, &app), 0);
+    }
+
+    #[test]
+    fn ranges_cover_imported_ports() {
+        let rows = [PortRow {
+            start: "19000".into(),
+            end: "19200".into(),
+            protocol: PortChoice::Both,
+        }];
+        assert!(row_covers_port(&rows[0], 19132));
+        assert!(!row_covers_port(&rows[0], 20000));
     }
 
     #[test]
