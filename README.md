@@ -140,7 +140,7 @@ TCP/UDP/ICMP traffic between this PC and the peers of that room:
 - **CUSTOM** — an allowlist such as
   `tcp:25565, udp:4445, udp:19132-19133, icmp`.
 
-A room can inherit the global policy from **HELP → Settings → FIREWALL** or
+A room can inherit the global policy from **NETWORK → FIREWALL** or
 override it. Replies to allowed connections are tracked automatically. ARP is
 always allowed for the virtual Ethernet segment; IPv6 is only allowed by
 **ALL**. The filter runs in the GUI mesh data path (the CLI pairwise mode does
