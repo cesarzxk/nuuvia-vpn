@@ -24,7 +24,8 @@ pub use error::{Error, Result};
 pub use identity::Identity;
 pub use noise::{Handshake, Role};
 pub use rendezvous::{
-    default_server_udp, generate_token, parse_token, RendezvousClient, RendezvousConfig,
+    default_server_udp, generate_token, list_public_rooms, parse_token, RendezvousClient,
+    RendezvousConfig,
 };
 pub use room::RoomKey;
 pub use wire::{DataHeader, ReplayWindow, Session};
