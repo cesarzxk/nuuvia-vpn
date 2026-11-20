@@ -110,6 +110,14 @@ impl PortChoice {
         }
     }
 
+    fn covers_tcp(self) -> bool {
+        !matches!(self, Self::Udp)
+    }
+
+    fn covers_udp(self) -> bool {
+        !matches!(self, Self::Tcp)
+    }
+
     fn label(self, t: &Strings) -> &'static str {
         match self {
             Self::Both => t.firewall_both,
@@ -2250,7 +2258,8 @@ fn app_picker(ui: &mut Ui, picker: &mut AppPicker, rows: &mut Vec<PortRow>, t: &
                         ui.set_width(ui.available_width());
                         let row_width = ui.available_width();
                         for app in &picker.entries {
-                            let button_width = 46.0;
+                            let covered = app_is_covered(rows, app);
+                            let button_width = 64.0;
                             let spacing = ui.spacing().item_spacing.x;
                             let text_width = (row_width - button_width - spacing).max(100.0);
                             ui.horizontal(|ui| {
@@ -2277,20 +2286,34 @@ fn app_picker(ui: &mut Ui, picker: &mut AppPicker, rows: &mut Vec<PortRow>, t: &
                                         );
                                     },
                                 );
+                                let (label, color) = if covered {
+                                    (t.firewall_app_remove, theme::RED)
+                                } else {
+                                    (t.firewall_app_add, theme::ACCENT)
+                                };
                                 if ui
                                     .add_sized(
                                         [button_width, 22.0],
                                         egui::Button::new(
-                                            RichText::new(t.firewall_app_add)
-                                                .font(theme::semibold(9.0))
-                                                .color(theme::ACCENT),
+                                            RichText::new(label)
+                                                .font(theme::semibold(8.5))
+                                                .color(color),
                                         )
                                         .fill(theme::CARD_3)
-                                        .stroke(Stroke::new(1.0_f32, theme::BORDER)),
+                                        .stroke(
+                                            Stroke::new(
+                                                1.0_f32,
+                                                if covered { theme::RED } else { theme::BORDER },
+                                            ),
+                                        ),
                                     )
                                     .clicked()
                                 {
-                                    add_app_ports(rows, app);
+                                    if covered {
+                                        remove_app_ports(rows, app);
+                                    } else {
+                                        add_app_ports(rows, app);
+                                    }
                                 }
                             });
                             ui.add_space(2.0);
@@ -2342,13 +2365,89 @@ fn add_app_ports(rows: &mut Vec<PortRow>, app: &ListeningApp) -> usize {
     added
 }
 
-fn row_covers_port(row: &PortRow, port: u16) -> bool {
-    let start = row.start.trim().parse::<u16>().ok();
+fn app_is_covered(rows: &[PortRow], app: &ListeningApp) -> bool {
+    app.ports.iter().all(|entry| {
+        (!entry.tcp || port_allows(rows, entry.port, true))
+            && (!entry.udp || port_allows(rows, entry.port, false))
+    })
+}
+
+fn port_allows(rows: &[PortRow], port: u16, tcp: bool) -> bool {
+    rows.iter().any(|row| {
+        row_covers_port(row, port)
+            && if tcp {
+                row.protocol.covers_tcp()
+            } else {
+                row.protocol.covers_udp()
+            }
+    })
+}
+
+/// Removes the ports an app listens on, splitting ranges so the other ports
+/// keep their rules.
+fn remove_app_ports(rows: &mut Vec<PortRow>, app: &ListeningApp) {
+    for entry in &app.ports {
+        remove_port(rows, entry.port, entry.tcp, entry.udp);
+    }
+}
+
+fn remove_port(rows: &mut Vec<PortRow>, port: u16, tcp: bool, udp: bool) {
+    let mut result = Vec::with_capacity(rows.len() + 2);
+    for row in rows.drain(..) {
+        let Some((start, end)) = row_range(&row) else {
+            result.push(row);
+            continue;
+        };
+        if port < start || port > end {
+            result.push(row);
+            continue;
+        }
+        let mut keep_tcp = row.protocol.covers_tcp();
+        let mut keep_udp = row.protocol.covers_udp();
+        if tcp {
+            keep_tcp = false;
+        }
+        if udp {
+            keep_udp = false;
+        }
+        if start < port {
+            result.push(range_row(start, port - 1, row.protocol));
+        }
+        if keep_tcp || keep_udp {
+            let protocol = match (keep_tcp, keep_udp) {
+                (true, true) => PortChoice::Both,
+                (true, false) => PortChoice::Tcp,
+                (false, true) => PortChoice::Udp,
+                (false, false) => unreachable!(),
+            };
+            result.push(range_row(port, port, protocol));
+        }
+        if port < end {
+            result.push(range_row(port + 1, end, row.protocol));
+        }
+    }
+    *rows = result;
+}
+
+fn range_row(start: u16, end: u16, protocol: PortChoice) -> PortRow {
+    PortRow {
+        start: start.to_string(),
+        end: end.to_string(),
+        protocol,
+    }
+}
+
+fn row_range(row: &PortRow) -> Option<(u16, u16)> {
+    let start = row.start.trim().parse::<u16>().ok()?;
     let end = match row.end.trim() {
         "" | "=" => start,
-        value => value.parse::<u16>().ok(),
+        value => value.parse::<u16>().ok()?,
     };
-    matches!((start, end), (Some(start), Some(end)) if start <= port && port <= end)
+    (start <= end).then_some((start, end))
+}
+
+fn row_covers_port(row: &PortRow, port: u16) -> bool {
+    row_range(row).is_some_and(|(start, end)| start <= port && port <= end)
 }
 
 fn firewall_mode_desc(mode: FirewallMode, t: &Strings) -> &'static str {
@@ -2566,6 +2665,7 @@ mod tests {
         };
 
         assert_eq!(add_app_ports(&mut rows, &app), 2);
+        assert!(app_is_covered(&rows, &app));
         assert_eq!(rows[0].start, "19132");
         assert_eq!(rows[0].protocol, PortChoice::Udp);
         assert_eq!(rows[1].start, "25565");
@@ -2573,6 +2673,61 @@ mod tests {
         assert_eq!(rows[2].start, "25565");
         assert_eq!(rows[2].protocol, PortChoice::Tcp);
         assert_eq!(add_app_ports(&mut rows, &app), 0);
+    }
+
+    #[test]
+    fn removing_an_app_splits_ranges_and_drops_protocols() {
+        use crate::apps::ListeningPort;
+
+        let mut rows = vec![
+            PortRow {
+                start: "19000".into(),
+                end: "19200".into(),
+                protocol: PortChoice::Both,
+            },
+            PortRow {
+                start: "25565".into(),
+                end: "25565".into(),
+                protocol: PortChoice::Tcp,
+            },
+        ];
+        let app = ListeningApp {
+            pid: 7,
+            process: "game".into(),
+            ports: vec![
+                ListeningPort {
+                    port: 19132,
+                    tcp: false,
+                    udp: true,
+                },
+                ListeningPort {
+                    port: 25565,
+                    tcp: true,
+                    udp: false,
+                },
+            ],
+        };
+
+        assert!(app_is_covered(&rows, &app));
+        remove_app_ports(&mut rows, &app);
+        assert!(!app_is_covered(&rows, &app));
+        assert_eq!(rows.len(), 3);
+        assert_eq!(
+            (rows[0].start.as_str(), rows[0].end.as_str()),
+            ("19000", "19131")
+        );
+        assert_eq!(
+            (rows[1].start.as_str(), rows[1].end.as_str()),
+            ("19132", "19132")
+        );
+        assert_eq!(rows[1].protocol, PortChoice::Tcp);
+        assert_eq!(
+            (rows[2].start.as_str(), rows[2].end.as_str()),
+            ("19133", "19200")
+        );
+
+        assert_eq!(add_app_ports(&mut rows, &app), 2);
+        assert!(app_is_covered(&rows, &app));
     }
 
     #[test]
