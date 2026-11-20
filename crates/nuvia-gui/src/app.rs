@@ -5,10 +5,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
-    self, Align, Color32, Context, FontFamily, FontId, Frame, Layout, Margin, RichText, Rounding,
-    ScrollArea, Stroke, TextEdit, Ui, Vec2, ViewportCommand,
+    self, Align, Color32, Context, FontFamily, FontId, Frame, Grid, Layout, Margin, RichText,
+    Rounding, ScrollArea, Stroke, TextEdit, Ui, Vec2, ViewportCommand,
 };
-use nuvia_core::firewall::{FirewallMode, FirewallProfile};
+use nuvia_core::firewall::{FirewallMode, FirewallProfile, FirewallRuleProtocol, FirewallRuleView};
 use nuvia_core::tunnel::DiscoveryRoutes;
 use nuvia_core::Identity;
 use serde::{Deserialize, Serialize};
@@ -81,11 +81,74 @@ struct PendingAdd {
     bind_port: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PortChoice {
+    Both,
+    Tcp,
+    Udp,
+}
+
+impl PortChoice {
+    fn protocols(self) -> &'static [FirewallRuleProtocol] {
+        const BOTH: [FirewallRuleProtocol; 2] =
+            [FirewallRuleProtocol::Tcp, FirewallRuleProtocol::Udp];
+        const TCP: [FirewallRuleProtocol; 1] = [FirewallRuleProtocol::Tcp];
+        const UDP: [FirewallRuleProtocol; 1] = [FirewallRuleProtocol::Udp];
+        match self {
+            Self::Both => &BOTH,
+            Self::Tcp => &TCP,
+            Self::Udp => &UDP,
+        }
+    }
+
+    fn next(self) -> Self {
+        match self {
+            Self::Both => Self::Tcp,
+            Self::Tcp => Self::Udp,
+            Self::Udp => Self::Both,
+        }
+    }
+
+    fn label(self, t: &Strings) -> &'static str {
+        match self {
+            Self::Both => t.firewall_both,
+            Self::Tcp => "TCP",
+            Self::Udp => "UDP",
+        }
+    }
+
+    fn color(self) -> Color32 {
+        match self {
+            Self::Both => theme::ACCENT,
+            Self::Tcp => theme::ACCENT_SOFT,
+            Self::Udp => theme::PURPLE,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct PortRow {
+    start: String,
+    end: String,
+    protocol: PortChoice,
+}
+
+impl Default for PortRow {
+    fn default() -> Self {
+        Self {
+            start: String::new(),
+            end: String::new(),
+            protocol: PortChoice::Both,
+        }
+    }
+}
+
 struct FirewallEdit {
     room: String,
     inherit: bool,
     mode: FirewallMode,
-    rules: String,
+    ports: Vec<PortRow>,
+    icmp: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -135,11 +198,15 @@ pub struct NuviaApp {
     elevated: bool,
     show_settings: bool,
     show_about: bool,
+    show_firewall: bool,
 
     discovery: Option<DiscoveryRoutes>,
     active_room: Option<String>,
     pending_add: Option<PendingAdd>,
     firewall_default: FirewallProfile,
+    firewall_global_mode: FirewallMode,
+    firewall_global_ports: Vec<PortRow>,
+    firewall_global_icmp: bool,
     firewall_edit: Option<FirewallEdit>,
 
     tray: Tray,
@@ -227,6 +294,8 @@ impl NuviaApp {
         let selected = if rooms.is_empty() { None } else { Some(0) };
         let quitting = Arc::new(AtomicBool::new(false));
         let tray = Tray::spawn(cc.egui_ctx.clone(), quitting.clone(), language);
+        let (firewall_global_ports, firewall_global_icmp) =
+            port_rows_from_profile(&firewall_default);
 
         Self {
             backend,
@@ -247,9 +316,13 @@ impl NuviaApp {
             elevated: backend::is_elevated(),
             show_settings: false,
             show_about: false,
+            show_firewall: false,
             discovery: None,
             active_room: None,
             pending_add: None,
+            firewall_global_mode: firewall_default.mode,
+            firewall_global_ports,
+            firewall_global_icmp,
             firewall_default,
             firewall_edit: None,
             tray,
@@ -505,11 +578,13 @@ impl NuviaApp {
             .firewall
             .clone()
             .unwrap_or_else(|| self.firewall_default.clone());
+        let (ports, icmp) = port_rows_from_profile(&profile);
         self.firewall_edit = Some(FirewallEdit {
             room: room.name.clone(),
             inherit: room.firewall.is_none(),
             mode: profile.mode,
-            rules: profile.rules,
+            ports,
+            icmp,
         });
     }
 
@@ -908,6 +983,15 @@ impl NuviaApp {
                             self.open_add(AddMode::Join);
                             ui.close_menu();
                         }
+                        ui.separator();
+                        if ui.button(t.section_firewall).clicked() {
+                            self.firewall_global_mode = self.firewall_default.mode;
+                            let (ports, icmp) = port_rows_from_profile(&self.firewall_default);
+                            self.firewall_global_ports = ports;
+                            self.firewall_global_icmp = icmp;
+                            self.show_firewall = true;
+                            ui.close_menu();
+                        }
                     },
                 )
                 .response
@@ -1233,8 +1317,6 @@ impl NuviaApp {
             .collapsible(false)
             .resizable(false)
             .default_width(300.0)
-            .vscroll(true)
-            .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -16.0])
             .frame(
                 Frame::none()
@@ -1286,60 +1368,6 @@ impl NuviaApp {
                 }
 
                 ui.add_space(12.0);
-                theme::section(ui, t.section_firewall, t.firewall_global_hint);
-                let mut global_mode = self.firewall_default.mode;
-                theme::segmented(
-                    ui,
-                    &mut global_mode,
-                    &[
-                        (FirewallMode::All, t.firewall_all),
-                        (FirewallMode::Games, t.firewall_games),
-                        (FirewallMode::Block, t.firewall_block),
-                        (FirewallMode::Custom, t.firewall_custom),
-                    ],
-                );
-                let mut global_rules = self.firewall_default.rules.clone();
-                if global_mode == FirewallMode::Custom {
-                    ui.add_space(4.0);
-                    ui.add_sized(
-                        [300.0, 34.0],
-                        TextEdit::singleline(&mut global_rules)
-                            .hint_text(t.firewall_rules_hint)
-                            .text_color(theme::TEXT)
-                            .background_color(theme::CARD_2)
-                            .vertical_align(Align::Center),
-                    );
-                    ui.label(
-                        RichText::new(t.firewall_rules_hint)
-                            .size(10.0)
-                            .color(theme::MUTED),
-                    );
-                }
-                let candidate = FirewallProfile {
-                    mode: global_mode,
-                    rules: if global_mode == FirewallMode::Custom {
-                        global_rules
-                    } else {
-                        String::new()
-                    },
-                };
-                let valid = candidate.validate();
-                if let Err(error) = &valid {
-                    ui.label(
-                        RichText::new(render(t.firewall_invalid, &[("error", error)]))
-                            .size(10.0)
-                            .color(theme::RED),
-                    );
-                }
-                ui.add_space(4.0);
-                if theme::primary_button(ui, t.firewall_apply, valid.is_ok()).clicked() {
-                    self.firewall_default = candidate;
-                    self.save_rooms();
-                    self.apply_global_firewall();
-                    self.toast(t.firewall_updated);
-                }
-
-                ui.add_space(12.0);
                 theme::section(ui, t.section_language, t.language_hint);
                 let mut language = self.language;
                 theme::segmented(
@@ -1371,20 +1399,152 @@ impl NuviaApp {
             });
         self.show_settings = open;
     }
+    fn firewall_modal(&mut self, ctx: &Context) {
+        if !self.show_firewall {
+            return;
+        }
+        let t = self.language.strings();
+        let mut open = self.show_firewall;
+        let mut open_room = None;
+
+        egui::Window::new(t.firewall_title)
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(340.0)
+            .vscroll(true)
+            .max_height(470.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, -12.0])
+            .frame(
+                Frame::none()
+                    .fill(theme::CARD)
+                    .rounding(Rounding::same(14.0))
+                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
+                    .inner_margin(Margin {
+                        left: 18.0,
+                        right: 4.0,
+                        top: 14.0,
+                        bottom: 14.0,
+                    }),
+            )
+            .show(ctx, |ui| {
+                let content_width = 326.0;
+                ui.set_width(content_width);
+                ui.set_max_width(content_width);
+                theme::section(ui, t.firewall_global, t.firewall_global_hint);
+                theme::segmented_fill(
+                    ui,
+                    &mut self.firewall_global_mode,
+                    &[
+                        (FirewallMode::All, t.firewall_all),
+                        (FirewallMode::Games, t.firewall_games),
+                        (FirewallMode::Block, t.firewall_block),
+                        (FirewallMode::Custom, t.firewall_custom),
+                    ],
+                    content_width,
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(firewall_mode_desc(self.firewall_global_mode, t))
+                        .size(10.5)
+                        .color(theme::MUTED),
+                );
+                let custom_profile = if self.firewall_global_mode == FirewallMode::Custom {
+                    ui.add_space(4.0);
+                    custom_rules_editor(
+                        ui,
+                        &mut self.firewall_global_ports,
+                        &mut self.firewall_global_icmp,
+                        "global",
+                        content_width,
+                        t,
+                    )
+                } else {
+                    None
+                };
+                let candidate = if self.firewall_global_mode == FirewallMode::Custom {
+                    custom_profile
+                } else {
+                    Some(FirewallProfile {
+                        mode: self.firewall_global_mode,
+                        rules: String::new(),
+                    })
+                };
+                let valid = candidate.is_some();
+                ui.add_space(4.0);
+                if theme::primary_button_sized(ui, t.firewall_apply, valid, content_width).clicked()
+                {
+                    if let Some(profile) = candidate {
+                        self.firewall_default = profile;
+                        self.save_rooms();
+                        self.apply_global_firewall();
+                        self.toast(t.firewall_updated);
+                    }
+                }
+
+                ui.add_space(12.0);
+                theme::section(ui, t.firewall_networks, t.firewall_networks_hint);
+                if self.rooms.is_empty() {
+                    ui.label(
+                        RichText::new(t.no_networks_hint)
+                            .size(11.0)
+                            .color(theme::MUTED),
+                    );
+                } else {
+                    for (index, room) in self.rooms.iter().enumerate() {
+                        let (badge, color) = firewall_badge(room.firewall.as_ref(), t);
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(&room.name)
+                                    .font(theme::semibold(12.0))
+                                    .color(theme::TEXT),
+                            );
+                            theme::badge(ui, &badge, color);
+                            let button_width = 96.0;
+                            let spacing = ui.spacing().item_spacing.x;
+                            let spacer =
+                                (ui.available_width() - button_width - spacing * 1.25).max(0.0);
+                            ui.add_space(spacer);
+                            if ui
+                                .add_sized(
+                                    [button_width, 24.0],
+                                    egui::Button::new(
+                                        RichText::new(t.firewall_configure)
+                                            .font(theme::semibold(9.5))
+                                            .color(theme::TEXT),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                open_room = Some(index);
+                            }
+                        });
+                        ui.add_space(2.0);
+                    }
+                }
+            });
+        self.show_firewall = open;
+        if let Some(index) = open_room {
+            self.open_firewall(index);
+        }
+    }
+
     fn firewall_window(&mut self, ctx: &Context) {
         let Some(mut edit) = self.firewall_edit.take() else {
             return;
         };
         let t = self.language.strings();
         let mut open = true;
-        let mut close = false;
         let mut apply = false;
+        let mut apply_profile: Option<Option<FirewallProfile>> = None;
 
         egui::Window::new(format!("{} — {}", t.firewall_title, edit.room))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
             .default_width(320.0)
+            .vscroll(true)
+            .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -16.0])
             .frame(
                 Frame::none()
@@ -1394,7 +1554,9 @@ impl NuviaApp {
                     .inner_margin(Margin::same(18.0)),
             )
             .show(ctx, |ui| {
-                ui.set_width(320.0);
+                let content_width = 320.0;
+                ui.set_width(content_width);
+                ui.set_max_width(content_width);
                 ui.label(
                     RichText::new(t.section_firewall)
                         .font(theme::semibold(10.0))
@@ -1418,9 +1580,15 @@ impl NuviaApp {
                             .size(10.0)
                             .color(theme::MUTED),
                     );
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(firewall_mode_desc(self.firewall_default.mode, t))
+                            .size(10.5)
+                            .color(theme::MUTED),
+                    );
                 } else {
                     ui.add_space(4.0);
-                    theme::segmented(
+                    theme::segmented_fill(
                         ui,
                         &mut edit.mode,
                         &[
@@ -1429,92 +1597,65 @@ impl NuviaApp {
                             (FirewallMode::Block, t.firewall_block),
                             (FirewallMode::Custom, t.firewall_custom),
                         ],
+                        content_width,
                     );
-                    if edit.mode == FirewallMode::Custom {
-                        ui.add_space(4.0);
-                        ui.add_sized(
-                            [320.0, 34.0],
-                            TextEdit::singleline(&mut edit.rules)
-                                .hint_text(t.firewall_rules_hint)
-                                .text_color(theme::TEXT)
-                                .background_color(theme::CARD_2)
-                                .vertical_align(Align::Center),
-                        );
-                        ui.label(
-                            RichText::new(t.firewall_rules_hint)
-                                .size(10.0)
-                                .color(theme::MUTED),
-                        );
-                    }
-                }
-
-                let candidate = if edit.inherit {
-                    None
-                } else {
-                    Some(FirewallProfile {
-                        mode: edit.mode,
-                        rules: edit.rules.clone(),
-                    })
-                };
-                let valid = candidate
-                    .as_ref()
-                    .map_or(Ok(()), |profile| profile.validate());
-                if let Err(error) = &valid {
                     ui.add_space(4.0);
                     ui.label(
-                        RichText::new(render(t.firewall_invalid, &[("error", error)]))
-                            .size(10.0)
-                            .color(theme::RED),
+                        RichText::new(firewall_mode_desc(edit.mode, t))
+                            .size(10.5)
+                            .color(theme::MUTED),
                     );
                 }
+                let custom_profile = if !edit.inherit && edit.mode == FirewallMode::Custom {
+                    ui.add_space(4.0);
+                    custom_rules_editor(
+                        ui,
+                        &mut edit.ports,
+                        &mut edit.icmp,
+                        "room",
+                        content_width,
+                        t,
+                    )
+                } else {
+                    None
+                };
+
+                let candidate = if edit.inherit {
+                    Some(None)
+                } else if edit.mode == FirewallMode::Custom {
+                    custom_profile.map(Some)
+                } else {
+                    Some(Some(FirewallProfile {
+                        mode: edit.mode,
+                        rules: String::new(),
+                    }))
+                };
+                let valid = candidate.is_some();
+                apply_profile = candidate;
                 ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
-                            valid.is_ok(),
-                            egui::Button::new(
-                                RichText::new(t.firewall_apply)
-                                    .font(theme::semibold(12.0))
-                                    .color(if valid.is_ok() {
-                                        theme::TEXT
-                                    } else {
-                                        theme::MUTED
-                                    }),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        apply = true;
-                    }
-                    if ui.button(t.close).clicked() {
-                        close = true;
-                    }
-                });
+                if theme::primary_button_sized(ui, t.firewall_apply, valid, content_width).clicked()
+                {
+                    apply = true;
+                }
             });
 
         if apply {
-            let profile = if edit.inherit {
-                None
-            } else {
-                Some(FirewallProfile {
-                    mode: edit.mode,
-                    rules: edit.rules,
-                })
-            };
-            if let Some(room) = self.rooms.iter_mut().find(|room| room.name == edit.room) {
-                room.firewall = profile;
-                let effective = room
-                    .firewall
-                    .clone()
-                    .unwrap_or_else(|| self.firewall_default.clone());
-                self.backend.set_firewall(&room.name, effective);
+            if let Some(profile) = apply_profile {
+                if let Some(room) = self.rooms.iter_mut().find(|room| room.name == edit.room) {
+                    room.firewall = profile;
+                    let effective = room
+                        .firewall
+                        .clone()
+                        .unwrap_or_else(|| self.firewall_default.clone());
+                    self.backend.set_firewall(&room.name, effective);
+                }
+                self.save_rooms();
+                self.toast(t.firewall_updated);
             }
-            self.save_rooms();
-            self.toast(t.firewall_updated);
             self.firewall_edit = None;
             return;
         }
-        if close || !open {
+        if !open {
             self.firewall_edit = None;
         } else {
             self.firewall_edit = Some(edit);
@@ -1688,6 +1829,7 @@ impl eframe::App for NuviaApp {
         self.settings_window(ctx);
         self.add_window(ctx);
         self.about_window(ctx);
+        self.firewall_modal(ctx);
         self.firewall_window(ctx);
 
         if let Some((message, _)) = &self.toast {
@@ -1786,6 +1928,231 @@ fn firewall_badge(profile: Option<&FirewallProfile>, t: &Strings) -> (String, Co
             FirewallMode::Block => (format!("FW {}", t.firewall_block), theme::RED),
             FirewallMode::Custom => (format!("FW {}", t.firewall_custom), theme::PURPLE),
         },
+    }
+}
+
+fn port_rows_from_profile(profile: &FirewallProfile) -> (Vec<PortRow>, bool) {
+    let mut rows = Vec::new();
+    let mut icmp = false;
+    for rule in profile.port_rules().unwrap_or_default() {
+        match rule.protocol {
+            FirewallRuleProtocol::Tcp => rows.push(PortRow {
+                start: rule.start.to_string(),
+                end: if rule.start == rule.end {
+                    String::new()
+                } else {
+                    rule.end.to_string()
+                },
+                protocol: PortChoice::Tcp,
+            }),
+            FirewallRuleProtocol::Udp => rows.push(PortRow {
+                start: rule.start.to_string(),
+                end: if rule.start == rule.end {
+                    String::new()
+                } else {
+                    rule.end.to_string()
+                },
+                protocol: PortChoice::Udp,
+            }),
+            FirewallRuleProtocol::Icmp => icmp = true,
+        }
+    }
+    (rows, icmp)
+}
+
+fn profile_from_port_rows(rows: &[PortRow], icmp: bool) -> Option<FirewallProfile> {
+    let mut rules = Vec::new();
+    for row in rows {
+        let start_text = row.start.trim();
+        let end_text = row.end.trim();
+        if start_text.is_empty() && end_text.is_empty() {
+            continue;
+        }
+        let start = start_text.parse::<u16>().ok()?;
+        let end = if end_text.is_empty() {
+            start
+        } else {
+            end_text.parse::<u16>().ok()?
+        };
+        if start == 0 || end == 0 || start > end {
+            return None;
+        }
+        for protocol in row.protocol.protocols() {
+            rules.push(FirewallRuleView {
+                protocol: *protocol,
+                start,
+                end,
+            });
+        }
+    }
+    if icmp {
+        rules.push(FirewallRuleView {
+            protocol: FirewallRuleProtocol::Icmp,
+            start: 0,
+            end: 0,
+        });
+    }
+    let mut profile = FirewallProfile::custom("");
+    profile.set_port_rules(&rules).ok()?;
+    Some(profile)
+}
+
+fn custom_rules_editor(
+    ui: &mut Ui,
+    rows: &mut Vec<PortRow>,
+    icmp: &mut bool,
+    id_salt: &str,
+    content_width: f32,
+    t: &Strings,
+) -> Option<FirewallProfile> {
+    ui.allocate_ui_with_layout(
+        Vec2::new(content_width, 26.0),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.label(
+                RichText::new(t.firewall_ports)
+                    .font(theme::semibold(10.0))
+                    .color(theme::ACCENT),
+            );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let add = ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new("+")
+                                .font(theme::semibold(15.0))
+                                .color(theme::ACCENT),
+                        )
+                        .min_size(Vec2::new(26.0, 26.0)),
+                    )
+                    .on_hover_text(t.firewall_rules_hint);
+                if add.clicked() {
+                    rows.insert(0, PortRow::default());
+                }
+            });
+        },
+    );
+    ui.label(
+        RichText::new(t.firewall_rules_hint)
+            .size(10.0)
+            .color(theme::MUTED),
+    );
+    ui.add_space(4.0);
+
+    // The grid adds the item spacing after its last cell; trim it so the
+    // table's right edge matches the segmented control and the APPLY button.
+    let total_width = (content_width - 8.0).max(280.0);
+    let protocol_width = 104.0;
+    let x_width = 26.0;
+    let spacing = 8.0 * 3.0;
+    let field_width = ((total_width - protocol_width - x_width - spacing) / 2.0).max(56.0);
+    let mut remove = None;
+    if rows.is_empty() {
+        ui.label(
+            RichText::new(t.firewall_no_rules)
+                .size(11.0)
+                .color(theme::MUTED),
+        );
+    } else {
+        Grid::new(("fw-port-grid", id_salt))
+            .num_columns(4)
+            .striped(true)
+            .spacing([8.0, 6.0])
+            .show(ui, |ui| {
+                ui.label(
+                    RichText::new(t.firewall_port)
+                        .font(theme::semibold(9.0))
+                        .color(theme::MUTED),
+                );
+                ui.label(
+                    RichText::new(t.firewall_end)
+                        .font(theme::semibold(9.0))
+                        .color(theme::MUTED),
+                );
+                ui.label(
+                    RichText::new(t.firewall_protocol)
+                        .font(theme::semibold(9.0))
+                        .color(theme::MUTED),
+                );
+                ui.label("");
+                ui.end_row();
+
+                for (index, row) in rows.iter_mut().enumerate() {
+                    ui.add_sized(
+                        [field_width, 26.0],
+                        TextEdit::singleline(&mut row.start)
+                            .hint_text(t.firewall_port)
+                            .text_color(theme::TEXT)
+                            .background_color(theme::CARD_2)
+                            .vertical_align(Align::Center),
+                    );
+                    ui.add_sized(
+                        [field_width, 26.0],
+                        TextEdit::singleline(&mut row.end)
+                            .hint_text("=")
+                            .text_color(theme::TEXT)
+                            .background_color(theme::CARD_2)
+                            .vertical_align(Align::Center),
+                    );
+                    let label = row.protocol.label(t);
+                    let color = row.protocol.color();
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(label).font(theme::semibold(9.5)).color(color),
+                            )
+                            .fill(theme::CARD_3)
+                            .min_size(Vec2::new(protocol_width, 24.0)),
+                        )
+                        .on_hover_text(t.firewall_rules_hint)
+                        .clicked()
+                    {
+                        row.protocol = row.protocol.next();
+                    }
+                    let remove_button = ui.add_sized(
+                        [x_width, 26.0],
+                        egui::Button::new(
+                            RichText::new("x")
+                                .font(theme::semibold(10.0))
+                                .color(theme::MUTED),
+                        )
+                        .fill(theme::CARD_3),
+                    );
+                    if remove_button.clicked() {
+                        remove = Some(index);
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(index) = remove {
+            rows.remove(index);
+        }
+    }
+
+    ui.add_space(4.0);
+    ui.checkbox(
+        icmp,
+        RichText::new(t.firewall_icmp)
+            .size(11.0)
+            .color(theme::MUTED),
+    );
+    let profile = profile_from_port_rows(rows, *icmp);
+    if profile.is_none() {
+        ui.label(
+            RichText::new(t.firewall_invalid_port)
+                .size(10.0)
+                .color(theme::RED),
+        );
+    }
+    profile
+}
+
+fn firewall_mode_desc(mode: FirewallMode, t: &Strings) -> &'static str {
+    match mode {
+        FirewallMode::All => t.firewall_desc_all,
+        FirewallMode::Games => t.firewall_desc_games,
+        FirewallMode::Block => t.firewall_desc_block,
+        FirewallMode::Custom => t.firewall_desc_custom,
     }
 }
 
