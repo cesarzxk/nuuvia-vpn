@@ -71,6 +71,9 @@ pub struct RoomConfig {
     pub bind_port: u16,
     pub identity_path: PathBuf,
     pub lang: Lang,
+    /// `true` creates the room if it does not exist; `false` requires an
+    /// existing room (Join Network).
+    pub create: bool,
 }
 
 pub struct Backend {
@@ -111,11 +114,14 @@ impl Backend {
 
     pub fn join(&mut self, config: RoomConfig) -> Result<()> {
         let t = config.lang.strings();
-        if self.sessions.contains_key(&config.name) {
-            bail!(
-                "{}",
-                render(t.backend_already_connected, &[("name", &config.name)])
-            );
+        if let Some(handle) = self.sessions.get(&config.name) {
+            if !handle.is_finished() {
+                bail!(
+                    "{}",
+                    render(t.backend_already_connected, &[("name", &config.name)])
+                );
+            }
+            self.sessions.remove(&config.name);
         }
 
         let room = config.name.clone();
@@ -143,6 +149,8 @@ impl Backend {
 
     pub fn leave(&mut self, room: &str) {
         if let Some(handle) = self.sessions.remove(room) {
+            // Abort the task, but do not block the UI waiting for the socket to
+            // close: the reconnect path retries the bind for a short while.
             handle.abort();
             let _ = self.events_tx.send(Event::Stopped {
                 room: room.to_string(),
@@ -156,6 +164,37 @@ impl Backend {
             events.push(event);
         }
         events
+    }
+}
+
+/// Binds the room's UDP port, retrying briefly while a previous session's
+/// socket is being released.
+async fn bind_room_socket(port: u16) -> std::io::Result<UdpSocket> {
+    const ATTEMPTS: usize = 25;
+    let mut last_error = None;
+    for attempt in 0..ATTEMPTS {
+        match UdpSocket::bind(("0.0.0.0", port)).await {
+            Ok(socket) => return Ok(socket),
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AddrInUse && attempt + 1 < ATTEMPTS =>
+            {
+                last_error = Some(error);
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(last_error
+        .unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::AddrInUse, "UDP port busy")))
+}
+
+/// Aborts a child task when the owning session future is dropped, including
+/// when the GUI reconnects and cancels the session.
+struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
     }
 }
 
@@ -182,14 +221,12 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
         phase: Phase::Starting,
     });
 
-    let socket = UdpSocket::bind(("0.0.0.0", config.bind_port))
-        .await
-        .with_context(|| {
-            render(
-                t.backend_port_busy,
-                &[("port", &config.bind_port.to_string())],
-            )
-        })?;
+    let socket = bind_room_socket(config.bind_port).await.with_context(|| {
+        render(
+            t.backend_port_busy,
+            &[("port", &config.bind_port.to_string())],
+        )
+    })?;
 
     let mut rendezvous = RendezvousConfig::new(
         SERVER_URL.to_string(),
@@ -198,6 +235,7 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
         token,
         *identity.public_key(),
     );
+    rendezvous.create = config.create;
     if let Ok(bind) = socket.local_addr() {
         rendezvous.set_local_endpoints(bind);
     }
@@ -237,7 +275,7 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
     let (status_tx, mut status_rx) = tokio::sync::mpsc::channel(64);
     let status_events = events.clone();
     let room_name = config.name.clone();
-    let status_task = tokio::spawn(async move {
+    let _status_task = AbortOnDrop(tokio::spawn(async move {
         while let Some(status) = status_rx.recv().await {
             let event = match status {
                 TunnelStatus::Established => Event::Connected {
@@ -261,13 +299,13 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
             };
             let _ = status_events.send(event);
         }
-    });
+    }));
 
     let (peers_tx, mut peers_rx) = tokio::sync::mpsc::channel::<Vec<PeerInfo>>(4);
     let peers_events = events.clone();
     let peers_room = config.name.clone();
     let peers_own_ip = own_ip.to_string();
-    let peers_task = tokio::spawn(async move {
+    let _peers_task = AbortOnDrop(tokio::spawn(async move {
         while let Some(peers) = peers_rx.recv().await {
             let _ = peers_events.send(Event::Participants {
                 room: peers_room.clone(),
@@ -275,7 +313,7 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
                 peers: participant_list(&peers),
             });
         }
-    });
+    }));
 
     let group = GroupSession::new(&room.group_key(), peer_tag(identity.public_key()));
     let mesh = MeshConfig {
@@ -290,8 +328,6 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
 
     let result = run_mesh(mesh, socket, client, group, tap).await;
 
-    status_task.abort();
-    peers_task.abort();
     result.map_err(|error| anyhow!("{error}"))
 }
 
@@ -379,4 +415,23 @@ fn hostname() -> Option<String> {
         .or_else(|| std::env::var("COMPUTERNAME").ok())
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn bind_retries_until_the_previous_socket_is_released() {
+        let first = UdpSocket::bind(("0.0.0.0", 0)).await.unwrap();
+        let port = first.local_addr().unwrap().port();
+        let release = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            drop(first);
+        });
+
+        let second = bind_room_socket(port).await.unwrap();
+        assert_eq!(second.local_addr().unwrap().port(), port);
+        release.await.unwrap();
+    }
 }
