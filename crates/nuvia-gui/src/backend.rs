@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use anyhow::{anyhow, bail, Context, Result};
+use nuvia_core::firewall::FirewallProfile;
 use nuvia_core::identity::default_identity_path;
 use nuvia_core::mesh::GroupSession;
 use nuvia_core::room::mesh_ip;
@@ -74,6 +75,7 @@ pub struct RoomConfig {
     /// `true` creates the room if it does not exist; `false` requires an
     /// existing room (Join Network).
     pub create: bool,
+    pub firewall: FirewallProfile,
 }
 
 pub struct Backend {
@@ -81,6 +83,7 @@ pub struct Backend {
     events_tx: Sender<Event>,
     events_rx: Receiver<Event>,
     sessions: std::collections::HashMap<String, tokio::task::JoinHandle<()>>,
+    firewalls: std::collections::HashMap<String, tokio::sync::watch::Sender<FirewallProfile>>,
     hub: TapHub,
     next_index: u32,
 }
@@ -101,6 +104,7 @@ impl Backend {
             events_tx,
             events_rx,
             sessions: std::collections::HashMap::new(),
+            firewalls: std::collections::HashMap::new(),
             hub,
             next_index: 0,
         })
@@ -122,14 +126,16 @@ impl Backend {
                 );
             }
             self.sessions.remove(&config.name);
+            self.firewalls.remove(&config.name);
         }
 
         let room = config.name.clone();
         let session_name = room.clone();
         let events = self.events_tx.clone();
         let hub = self.hub.clone();
+        let (firewall_tx, firewall_rx) = tokio::sync::watch::channel(config.firewall.clone());
         let handle = self.runtime.spawn(async move {
-            match run_room(config, &events, hub).await {
+            match run_room(config, &events, hub, firewall_rx).await {
                 Ok(()) => {
                     let _ = events.send(Event::Stopped { room });
                 }
@@ -143,11 +149,19 @@ impl Backend {
             }
         });
 
-        self.sessions.insert(session_name, handle);
+        self.sessions.insert(session_name.clone(), handle);
+        self.firewalls.insert(session_name, firewall_tx);
         Ok(())
     }
 
+    pub fn set_firewall(&self, room: &str, firewall: FirewallProfile) {
+        if let Some(sender) = self.firewalls.get(room) {
+            let _ = sender.send(firewall);
+        }
+    }
+
     pub fn leave(&mut self, room: &str) {
+        self.firewalls.remove(room);
         if let Some(handle) = self.sessions.remove(room) {
             // Abort the task, but do not block the UI waiting for the socket to
             // close: the reconnect path retries the bind for a short while.
@@ -198,7 +212,12 @@ impl<T> Drop for AbortOnDrop<T> {
     }
 }
 
-async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Result<()> {
+async fn run_room(
+    config: RoomConfig,
+    events: &Sender<Event>,
+    hub: TapHub,
+    firewall: tokio::sync::watch::Receiver<FirewallProfile>,
+) -> Result<()> {
     let t = config.lang.strings();
     if config.password.is_empty() {
         bail!("{}", t.backend_empty_password);
@@ -324,6 +343,8 @@ async fn run_room(config: RoomConfig, events: &Sender<Event>, hub: TapHub) -> Re
         token,
         status: Some(status_tx),
         peers: Some(peers_tx),
+        firewall: config.firewall.clone(),
+        firewall_updates: Some(firewall),
     };
 
     let result = run_mesh(mesh, socket, client, group, tap).await;
