@@ -12,8 +12,8 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
 > com caminho direto ou relay, status por participante, firewall por rede com
-> importação de portas de apps, lista de redes persistida e fechar para a
-> bandeja (tray).
+> importação de portas de apps, descoberta de redes públicas, lista de redes
+> persistida e fechar para a bandeja (tray).
 
 > O nome do produto é **Nuuvia**. Identificadores internos, binários (`nuvia`,
 > `nuvia-gui`), pacotes, caminhos de configuração e nomes de TAP mantêm a grafia
@@ -147,6 +147,20 @@ sobrescrevê-la. Respostas de conexões permitidas são rastreadas
 automaticamente. ARP é sempre permitido para o segmento Ethernet virtual;
 IPv6 só é permitido em **TUDO**. O filtro roda no caminho mesh da GUI (o modo
 pairwise do CLI não usa), e mudanças aplicam imediatamente às redes conectadas.
+
+### Redes públicas
+
+**Criar rede** tem a opção **Rede pública** e a senha é opcional. As redes
+públicas são listadas pelo servidor de relay e aparecem em **Entrar em rede**
+em **Redes públicas**, com o selo ABERTA/COM SENHA e a contagem de jogadores.
+Selecionar uma rede ABERTA entra na hora, com senha vazia; selecionar uma COM
+SENHA preenche o nome e pede a senha. **ATUALIZAR** (e a atualização automática
+enquanto o diálogo está aberto) renova a lista.
+
+Uma rede sem senha é uma sala aberta: a chave do tráfego é derivada do nome
+público, então qualquer pessoa que souber o nome pode entrar e descriptografar
+o tráfego. Use uma senha para grupos privados e deixe **Rede pública**
+desmarcado para manter a rede fora do diretório.
 
 O topo mostra **um único IP de TAP**, igual para todas as salas. Cada cartão é
 uma linha compacta com título e badge; **clique no cartão** para expandir
