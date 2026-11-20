@@ -8,7 +8,7 @@ Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
 
-> Status: **1.3.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> Status: **1.4.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
@@ -338,10 +338,10 @@ Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
 
 Generates:
 
-- `dist/nuvia_1.3.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.4.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
   launcher uses `pkexec` to ask for the password and create the TAP/routes;
-- `dist/nuvia-1.3.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
+- `dist/nuvia-1.4.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
   an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
