@@ -72,6 +72,14 @@ EOF
 cat > "$DEB/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
+# A running copy of an older build has no single-instance guard and would
+# keep an extra window next to the new one. Close only the installed binary;
+# AppImage copies run from /tmp or /run and are left alone.
+if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -f '^/usr/bin/nuvia-gui( |$)' >/dev/null 2>&1 || true
+    sleep 1
+    pkill -KILL -f '^/usr/bin/nuvia-gui( |$)' >/dev/null 2>&1 || true
+fi
 user="${SUDO_USER:-}"
 if [ -z "$user" ] && [ -n "${PKEXEC_UID:-}" ]; then
     user="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
@@ -108,6 +116,10 @@ EOF
 cat > "$DEB/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 set -e
+# Stop the installed GUI before its files are removed.
+if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -f '^/usr/bin/nuvia-gui( |$)' >/dev/null 2>&1 || true
+fi
 if command -v systemctl >/dev/null 2>&1; then
     systemctl stop nuvia-helper.socket >/dev/null 2>&1 || true
     systemctl disable nuvia-helper.socket >/dev/null 2>&1 || true
