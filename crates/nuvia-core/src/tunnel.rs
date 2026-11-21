@@ -11,6 +11,7 @@ use tracing::{debug, info, warn};
 use tun_rs::{AsyncDevice, DeviceBuilder, Layer};
 
 use crate::firewall::{Firewall, FirewallProfile};
+use crate::helper;
 use crate::mesh::GroupSession;
 use crate::noise::{Handshake, Role};
 use crate::rendezvous::RendezvousClient;
@@ -175,13 +176,47 @@ enum TapEvent {
     Closed,
 }
 
+enum TapLink {
+    Local(Arc<AsyncDevice>),
+    Helper {
+        frames: mpsc::Sender<Vec<u8>>,
+        reader: tokio::task::JoinHandle<()>,
+        writer: tokio::task::JoinHandle<()>,
+    },
+}
+
+impl TapLink {
+    async fn send(&self, frame: Vec<u8>) -> Result<()> {
+        match self {
+            Self::Local(device) => {
+                device.send(&frame).await?;
+                Ok(())
+            }
+            Self::Helper { frames, .. } => frames
+                .send(frame)
+                .await
+                .map_err(|_| Error::config("nuvia helper disconnected")),
+        }
+    }
+}
+
+impl Drop for TapLink {
+    fn drop(&mut self) {
+        if let Self::Helper { reader, writer, .. } = self {
+            reader.abort();
+            writer.abort();
+            helper::set_active(false);
+        }
+    }
+}
+
 async fn hub_loop(
     tap_name: String,
     mtu: u16,
     mut commands: mpsc::Receiver<HubCommand>,
     mut inbound: mpsc::Receiver<Vec<u8>>,
 ) {
-    let mut tap: Option<Arc<AsyncDevice>> = None;
+    let mut tap: Option<TapLink> = None;
     let mut tap_reader: Option<tokio::task::JoinHandle<()>> = None;
     let mut rooms: HashMap<String, mpsc::Sender<Vec<u8>>> = HashMap::new();
     let (tap_tx, mut tap_rx) = mpsc::channel::<TapEvent>(512);
@@ -199,41 +234,89 @@ async fn hub_loop(
                                 prefix: MESH_PREFIX,
                                 mtu,
                             };
-                            match open_tap(&config).await {
-                                Ok(device) => {
-                                    #[cfg(windows)]
-                                    configure_windows_interface(&tap_name);
-                                    let device = Arc::new(device);
-                                    tap = Some(device.clone());
-                                    let reader = device.clone();
+                            let request = helper::StartRequest::new(
+                                tap_name.clone(),
+                                ip,
+                                MESH_PREFIX,
+                                mtu,
+                            );
+                            match helper::connect(&request).await {
+                                Ok(stream) => {
+                                    let (mut read_half, mut write_half) = stream.into_split();
+                                    let (frames, mut frame_rx) = mpsc::channel::<Vec<u8>>(512);
                                     let sender = tap_tx.clone();
-                                    tap_reader = Some(tokio::spawn(async move {
-                                        let mut buffer = vec![0u8; MAX_PACKET];
+                                    let reader = tokio::spawn(async move {
                                         loop {
-                                            match reader.recv(&mut buffer).await {
-                                                Ok(0) => continue,
-                                                Ok(length) => {
-                                                    if sender
-                                                        .send(TapEvent::Frame(buffer[..length].to_vec()))
-                                                        .await
-                                                        .is_err()
-                                                    {
+                                            match helper::read_frame(&mut read_half).await {
+                                                Ok(frame) => {
+                                                    if sender.send(TapEvent::Frame(frame)).await.is_err() {
                                                         break;
                                                     }
                                                 }
                                                 Err(error) => {
-                                                    warn!(%error, "shared TAP read failed");
+                                                    debug!(%error, "helper TAP read ended");
                                                     break;
                                                 }
                                             }
                                         }
                                         let _ = sender.send(TapEvent::Closed).await;
-                                    }));
-                                    info!(tap = %tap_name, ip = %ip, mtu, "shared TAP ready");
+                                    });
+                                    let writer = tokio::spawn(async move {
+                                        while let Some(frame) = frame_rx.recv().await {
+                                            if let Err(error) =
+                                                helper::write_frame(&mut write_half, &frame).await
+                                            {
+                                                warn!(%error, "helper TAP write failed");
+                                                break;
+                                            }
+                                        }
+                                    });
+                                    tap = Some(TapLink::Helper { frames, reader, writer });
+                                    info!(tap = %tap_name, ip = %ip, mtu, "shared TAP ready (helper)");
                                 }
-                                Err(error) => {
-                                    let _ = reply.send(Err(error));
-                                    continue;
+                                Err(helper_error) => {
+                                    debug!(%helper_error, "nuvia helper unavailable; opening TAP locally");
+                                    match open_tap(&config).await {
+                                        Ok(device) => {
+                                            #[cfg(windows)]
+                                            configure_windows_interface(&tap_name);
+                                            let device = Arc::new(device);
+                                            let reader_device = device.clone();
+                                            let sender = tap_tx.clone();
+                                            tap_reader = Some(tokio::spawn(async move {
+                                                let mut buffer = vec![0u8; MAX_PACKET];
+                                                loop {
+                                                    match reader_device.recv(&mut buffer).await {
+                                                        Ok(0) => continue,
+                                                        Ok(length) => {
+                                                            if sender
+                                                                .send(TapEvent::Frame(
+                                                                    buffer[..length].to_vec(),
+                                                                ))
+                                                                .await
+                                                                .is_err()
+                                                            {
+                                                                break;
+                                                            }
+                                                        }
+                                                        Err(error) => {
+                                                            warn!(%error, "shared TAP read failed");
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                let _ = sender.send(TapEvent::Closed).await;
+                                            }));
+                                            tap = Some(TapLink::Local(device));
+                                            info!(tap = %tap_name, ip = %ip, mtu, "shared TAP ready (local)");
+                                        }
+                                        Err(local_error) => {
+                                            let _ = reply.send(Err(Error::config(format!(
+                                                "nuvia helper failed ({helper_error}); local TAP failed ({local_error})"
+                                            ))));
+                                            continue;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -243,9 +326,9 @@ async fn hub_loop(
                 }
             }
             Some(frame) = inbound.recv() => {
-                if let Some(device) = &tap {
-                    match tokio::time::timeout(Duration::from_secs(2), device.send(&frame)).await {
-                        Ok(Ok(_)) => {}
+                if let Some(link) = &tap {
+                    match tokio::time::timeout(Duration::from_secs(2), link.send(frame)).await {
+                        Ok(Ok(())) => {}
                         Ok(Err(error)) => {
                             warn!(%error, "shared TAP write failed");
                             tap = None;
@@ -743,6 +826,11 @@ pub async fn run_mesh(
     }
 }
 
+/// Opens the shared TAP for the privileged helper.
+pub async fn open_tap_device(config: &TapConfig) -> Result<AsyncDevice> {
+    open_tap(config).await
+}
+
 async fn open_tap(config: &TapConfig) -> Result<AsyncDevice> {
     #[cfg(windows)]
     let device = match build_tap(config) {
@@ -1067,7 +1155,7 @@ if ($json) {{
 
 /// Installs the multicast and limited-broadcast routes that make games run
 /// their discovery on the virtual interface. Removed when the tunnel stops.
-struct RouteGuard {
+pub struct RouteGuard {
     #[cfg(any(target_os = "linux", windows))]
     interface: String,
     #[cfg(windows)]
@@ -1075,7 +1163,7 @@ struct RouteGuard {
 }
 
 impl RouteGuard {
-    fn install(interface: &str) -> Self {
+    pub fn install(interface: &str) -> Self {
         #[cfg(target_os = "linux")]
         {
             const ROUTES: [&str; 3] = ["224.0.0.0/4", "224.0.2.60/32", "255.255.255.255/32"];
@@ -1174,9 +1262,17 @@ impl Drop for RouteGuard {
 ///   blocks inbound game traffic;
 /// * an explicit inbound firewall rule is needed for the tunnel interface.
 #[cfg(windows)]
-fn configure_windows_interface(interface: &str) {
+pub fn configure_windows_interface(interface: &str) {
+    let program = std::env::current_exe().ok();
+    configure_windows_interface_with(interface, program.as_deref());
+}
+
+/// Like [`configure_windows_interface`], but lets the privileged helper add
+/// the inbound program rule for the GUI instead of for itself.
+#[cfg(windows)]
+pub fn configure_windows_interface_with(interface: &str, program: Option<&std::path::Path>) {
     let escaped = interface.replace('\'', "''");
-    let executable = std::env::current_exe()
+    let executable = program
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default()
         .replace('\'', "''");
