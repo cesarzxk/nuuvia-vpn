@@ -2073,6 +2073,16 @@ impl eframe::App for NuviaApp {
             && !self.quitting.load(Ordering::SeqCst)
         {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+            // Tray icons owned by an elevated Windows process can appear but
+            // not receive Explorer clicks because of UIPI. In that case keep
+            // the window in the taskbar instead of hiding it forever.
+            #[cfg(windows)]
+            if backend::is_elevated() {
+                ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
+            } else {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+            }
+            #[cfg(not(windows))]
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
 
