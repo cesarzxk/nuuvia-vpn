@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-: "${VERSION:=1.4.0}"
+: "${VERSION:=1.5.0}"
 TARGET="x86_64-pc-windows-gnu"
 OUT="$ROOT/dist/windows"
 DRIVER_SRC="${DRIVER_SRC:-/tmp/nuvia-build/driver/amd64}"
@@ -22,7 +22,7 @@ if ! command -v makensis >/dev/null 2>&1; then
 fi
 
 echo "==> building Windows binaries"
-cargo build --release -p nuvia-gui -p nuvia-cli -p nuvia-probe --target "$TARGET"
+cargo build --release -p nuvia-gui -p nuvia-cli -p nuvia-probe -p nuvia-helper --target "$TARGET"
 
 rm -rf "$OUT/driver" "$OUT/soft"
 mkdir -p "$OUT" "$OUT/driver"
@@ -43,6 +43,7 @@ if [ ! -d "$DRIVER_SRC" ]; then
 fi
 
 install -m 0755 "target/$TARGET/release/nuvia-gui.exe" "$OUT/nuvia-gui.exe"
+install -m 0755 "target/$TARGET/release/nuvia-helper.exe" "$OUT/nuvia-helper.exe"
 install -m 0755 "target/$TARGET/release/nuvia.exe" "$OUT/nuvia.exe"
 install -m 0755 "target/$TARGET/release/lanprobe.exe" "$OUT/lanprobe.exe"
 install -m 0644 deploy/windows/README.md "$OUT/README.md"
