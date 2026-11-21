@@ -1301,15 +1301,9 @@ impl NuviaApp {
             .vscroll(true)
             .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -24.0])
-            .frame(
-                Frame::none()
-                    .fill(theme::CARD)
-                    .rounding(Rounding::same(14.0))
-                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
-                    .inner_margin(Margin::same(18.0)),
-            )
+            .frame(theme::modal_frame_scroll())
             .show(ctx, |ui| {
-                ui.set_width(320.0);
+                ui.set_width(theme::MODAL_WIDTH);
                 ui.label(
                     RichText::new(kicker)
                         .font(theme::semibold(10.0))
@@ -1492,19 +1486,13 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .default_width(360.0)
+            .default_width(theme::MODAL_WIDTH)
             .vscroll(true)
             .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -12.0])
-            .frame(
-                Frame::none()
-                    .fill(theme::CARD)
-                    .rounding(Rounding::same(14.0))
-                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
-                    .inner_margin(Margin::same(18.0)),
-            )
+            .frame(theme::modal_frame_scroll())
             .show(ctx, |ui| {
-                let content_width = 340.0;
+                let content_width = theme::MODAL_WIDTH;
                 ui.set_width(content_width);
                 ui.horizontal(|ui| {
                     ui.label(
@@ -1673,17 +1661,11 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .default_width(300.0)
+            .default_width(theme::MODAL_WIDTH)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -16.0])
-            .frame(
-                Frame::none()
-                    .fill(theme::CARD)
-                    .rounding(Rounding::same(14.0))
-                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
-                    .inner_margin(Margin::same(14.0)),
-            )
+            .frame(theme::modal_frame())
             .show(ctx, |ui| {
-                ui.set_width(300.0);
+                ui.set_width(theme::MODAL_WIDTH);
                 theme::section(ui, t.section_identity, t.identity_hint);
                 ui.label(
                     RichText::new(self.identity_path.display().to_string())
@@ -2032,16 +2014,11 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
+            .default_width(theme::MODAL_WIDTH)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -20.0])
-            .frame(
-                Frame::none()
-                    .fill(theme::CARD)
-                    .rounding(Rounding::same(14.0))
-                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
-                    .inner_margin(Margin::same(18.0)),
-            )
+            .frame(theme::modal_frame())
             .show(ctx, |ui| {
-                ui.set_width(300.0);
+                ui.set_width(theme::MODAL_WIDTH);
                 ui.label(
                     RichText::new("NUUVIA")
                         .font(theme::display(28.0))
