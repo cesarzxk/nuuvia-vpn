@@ -1,0 +1,9 @@
+[Unit]
+Description=Nuuvia helper loopback socket
+
+[Socket]
+ListenStream=127.0.0.1:4647
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target
