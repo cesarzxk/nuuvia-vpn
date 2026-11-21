@@ -11,6 +11,12 @@ pub const ROOM_ID_LEN: usize = 16;
 pub const PEER_ID_LEN: usize = 32;
 pub const TOKEN_LEN: usize = 16;
 pub const DEFAULT_SERVER_UDP_PORT: u16 = 8443;
+/// Room capacity used when a client does not request one. The GUI keeps this
+/// default so normal rooms stay small and easy to manage.
+pub const DEFAULT_MAX_PEERS: u16 = 8;
+/// Maximum room capacity the stock CLI accepts. A server can impose a lower
+/// hard cap in its configuration.
+pub const MAX_PEERS_PER_ROOM: u16 = 32;
 
 pub const HELLO_MAGIC: [u8; 4] = *b"NUVH";
 pub const HELLO_ACK_MAGIC: [u8; 4] = *b"NUVA";
@@ -27,6 +33,7 @@ pub const RELAY_HEADER_LEN: usize = 4 + 2 + ROOM_ID_LEN + PEER_TAG_LEN + PEER_TA
 pub const ACK_OK: u8 = 0;
 pub const ACK_INVALID_TOKEN: u8 = 1;
 pub const ACK_ROOM_NOT_FOUND: u8 = 2;
+pub const ACK_ROOM_FULL: u8 = 3;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProtocolError {
@@ -68,6 +75,11 @@ pub struct RegisterRequest {
     /// password itself.
     #[serde(default, skip_serializing_if = "is_false")]
     pub has_password: bool,
+    /// Requested capacity when creating a room. The server clamps it to its
+    /// configured hard cap. Omitted means [`DEFAULT_MAX_PEERS`], which keeps
+    /// older clients compatible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_peers: Option<u16>,
     /// LAN addresses (`ip:port`) where this peer's UDP socket can also be
     /// reached. They are hints for direct paths between peers behind the same
     /// NAT, where the public endpoint is not hairpin-reachable.
@@ -191,6 +203,12 @@ impl HelloAck {
     pub fn room_not_found() -> Self {
         Self {
             status: ACK_ROOM_NOT_FOUND,
+        }
+    }
+
+    pub fn room_full() -> Self {
+        Self {
+            status: ACK_ROOM_FULL,
         }
     }
 
@@ -379,6 +397,7 @@ mod tests {
             room_name: Some("casa".into()),
             public: true,
             has_password: false,
+            max_peers: Some(16),
             local_endpoints: Vec::new(),
         };
         let encoded = serde_json::to_string(&request).unwrap();
@@ -386,6 +405,12 @@ mod tests {
         assert_eq!(decoded.room_name.as_deref(), Some("casa"));
         assert!(decoded.public);
         assert!(!decoded.has_password);
+        assert_eq!(decoded.max_peers, Some(16));
+
+        // Older clients omit the field and must keep working with the default.
+        let legacy = encoded.replace(",\"max_peers\":16", "");
+        let decoded: RegisterRequest = serde_json::from_str(&legacy).unwrap();
+        assert_eq!(decoded.max_peers, None);
 
         let response = PublicRoomsResponse {
             protocol: PROTOCOL_VERSION,
