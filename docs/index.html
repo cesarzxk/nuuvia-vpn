@@ -66,7 +66,7 @@
         "applicationCategory": "NetworkApplication",
         "applicationSubCategory": "VPN",
         "operatingSystem": "Windows 10, Windows 11, Linux",
-        "softwareVersion": "1.4.0",
+        "softwareVersion": "1.4.5",
         "downloadUrl": "https://github.com/cesarzxk/nuuvia-vpn/releases/latest",
         "codeRepository": "https://github.com/cesarzxk/nuuvia-vpn",
         "license": "https://opensource.org/license/mit",
@@ -178,11 +178,11 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="container hero-grid">
         <div class="hero-copy reveal">
-          <p class="eyebrow"><span class="dot"></span> v1.4.0 · Open source · Windows &amp; Linux</p>
+          <p class="eyebrow"><span class="dot"></span> v1.4.5 · Open source · Windows &amp; Linux</p>
           <h1 id="hero-title">Play LAN games together. <span>From anywhere.</span></h1>
           <p class="lead">Nuuvia is an encrypted Layer 2 VPN that puts every player on the same virtual Ethernet cable. Minecraft and other LAN games discover each other as if you were all in the same room.</p>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.0/nuvia-setup-x86_64.exe" rel="noopener">
+            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.5/nuvia-setup-x86_64.exe" rel="noopener">
               <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M3 5.5 10.5 3v8H3V5.5Zm0 13L10.5 21v-8H3v5.5ZM11.7 2.7 21 1v10H11.7V2.7Zm0 17.6L21 23V13H11.7v7.3Z" fill="currentColor"/></svg>
               Download for Windows
             </a>
@@ -262,7 +262,12 @@
           <article class="feature-card reveal">
             <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="16.5" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div>
             <h3>Simple by default</h3>
-            <p>Just a room name and an optional password. No port forwarding, no invites, no config files, and a tray icon that keeps it running.</p>
+            <p>Just a room name and an optional password. No port forwarding, no invites, no config files, and a tray icon that keeps it running. Opening Nuuvia again restores the existing window instead of starting a second copy.</p>
+          </article>
+          <article class="feature-card reveal">
+            <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.4c0 4.6 3.2 7.8 7.5 9.6 4.3-1.8 7.5-5 7.5-9.6V6L12 3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.2 12.2 11 14l4-4.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>No sudo, no UAC</h3>
+            <p>A small privileged helper creates the virtual adapter and discovery routes on demand, then exits when idle. After installation, the app runs as your normal user.</p>
           </article>
         </div>
       </div>
@@ -343,7 +348,7 @@
       <div class="container">
         <div class="section-head reveal">
           <p class="eyebrow">Download</p>
-          <h2 id="download-title">Get Nuuvia 1.4.0.</h2>
+          <h2 id="download-title">Get Nuuvia 1.4.5.</h2>
           <p>Free for Windows and Linux. No account, no subscription, no telemetry.</p>
         </div>
         <div class="download-grid">
@@ -351,15 +356,15 @@
             <div class="os-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 10.5 3v8H3V5.5Zm0 13L10.5 21v-8H3v5.5ZM11.7 2.7 21 1v10H11.7V2.7Zm0 17.6L21 23V13H11.7v7.3Z" fill="currentColor"/></svg></div>
             <h3>Windows</h3>
             <p>Windows 10 or 11, 64-bit. The installer includes the signed TAP driver.</p>
-            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.0/nuvia-setup-x86_64.exe" rel="noopener">Download installer</a>
-            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.0/nuvia-windows-x86_64.zip" rel="noopener">Portable .zip</a>
+            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.5/nuvia-setup-x86_64.exe" rel="noopener">Download installer</a>
+            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.5/nuvia-windows-x86_64.zip" rel="noopener">Portable .zip</a>
           </article>
           <article class="download-card reveal">
             <div class="os-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3c-4.4 0-6 1.7-6 4.5 0 2 .8 3.4 2.6 4.5-1.5.8-2.2 2-2.2 3.7 0 1.7.7 2.9 2.1 3.7-1.3.9-2 2.3-2 4.1 0 2.7 2.2 4 5.5 4 3.7 0 6-1.6 6-4.7 0-2.2-1.2-3.7-3.6-4.4l-3.1-.9c-1-.3-1.5-.8-1.5-1.5 0-.9.8-1.5 2.1-1.5 1.5 0 2.4.6 2.8 1.8l2.6-1.1c-.7-2-2.4-3.2-5.1-3.2-1 0-1.9.2-2.6.5C10.9 7 12 6 12 4.8c0-.7-.3-1.2-.8-1.6-.1 0-.4-.2.8-.2Z" fill="currentColor"/></svg></div>
             <h3>Linux</h3>
-            <p>Debian/Ubuntu package or a portable AppImage. Uses pkexec for TAP and routes.</p>
-            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.0/nuvia_1.4.0_amd64.deb" rel="noopener">Download .deb</a>
-            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.0/nuvia-1.4.0-x86_64.AppImage" rel="noopener">Portable AppImage</a>
+            <p>Debian/Ubuntu package or a portable AppImage. The installed helper creates the TAP and routes without sudo; pkexec is the fallback.</p>
+            <a class="btn btn-primary" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.5/nuvia_1.4.5_amd64.deb" rel="noopener">Download .deb</a>
+            <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.5/nuvia-1.4.5-x86_64.AppImage" rel="noopener">Portable AppImage</a>
           </article>
           <article class="download-card reveal">
             <div class="os-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.4-1.1.7-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z" fill="currentColor"/></svg></div>
@@ -369,7 +374,7 @@
             <a class="mini-link" href="https://github.com/cesarzxk/nuuvia-vpn/releases" rel="noopener">All releases</a>
           </article>
         </div>
-        <p class="download-note">Installer filenames keep the original <code>nuvia</code> prefix for compatibility. Windows binaries are not code-signed yet, so SmartScreen may warn; you can build from source or verify the <a href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.0/SHA256SUMS-1.4.0.txt" rel="noopener">release checksums</a>. Read the <a href="https://github.com/cesarzxk/nuuvia-vpn/blob/main/CODE_SIGNING.md" rel="noopener">code signing policy</a>.</p>
+        <p class="download-note">Installer filenames keep the original <code>nuvia</code> prefix for compatibility. Windows binaries are not code-signed yet, so SmartScreen may warn; you can build from source or verify the <a href="https://github.com/cesarzxk/nuuvia-vpn/releases/download/v1.4.5/SHA256SUMS-1.4.5.txt" rel="noopener">release checksums</a>. Read the <a href="https://github.com/cesarzxk/nuuvia-vpn/blob/main/CODE_SIGNING.md" rel="noopener">code signing policy</a>.</p>
       </div>
     </section>
 
@@ -394,6 +399,10 @@
             <p>No. Download the app, create a room with a name and password, and share that name and password with the other players. The public rendezvous and relay are built in.</p>
           </details>
           <details>
+            <summary>Does Nuuvia need administrator rights?</summary>
+            <p>Only to install or update. A small privileged helper creates the virtual adapter, IP and discovery routes; the GUI runs as a normal user with no sudo or UAC prompt. If the helper is not installed, Linux falls back to pkexec and the Windows portable zip starts in limited mode.</p>
+          </details>
+          <details>
             <summary>Can I control which ports are allowed?</summary>
             <p>Yes. Open <strong>Network → Firewall</strong> to set a global policy, and use each room's FIREWALL menu or badge to override it. Choose ALL, GAMES, BLOCK or CUSTOM. CUSTOM supports TCP/UDP ports and ranges, ICMP, and importing the listening ports of programs running on the PC.</p>
           </details>
@@ -412,6 +421,10 @@
           <details>
             <summary>How many players can join a room?</summary>
             <p>Up to 8 participants per room. You can keep multiple rooms connected at the same time; they share one local TAP and IP.</p>
+          </details>
+          <details>
+            <summary>Can I open Nuuvia more than once?</summary>
+            <p>No need. Only one GUI runs per user; launching it again restores the existing window from the tray or taskbar and the new copy exits.</p>
           </details>
           <details>
             <summary>Which languages does the interface support?</summary>
