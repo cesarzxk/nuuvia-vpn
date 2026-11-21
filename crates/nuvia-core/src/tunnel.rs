@@ -907,15 +907,18 @@ fn repair_windows_tap(name: &str) -> Result<()> {
     let Some(exe_dir) = exe_dir else {
         return Err(Error::config("não foi possível localizar a pasta do nuvia"));
     };
-    let driver = exe_dir.join("driver");
+    // The compatibility copy lives in `soft\`, one level below the install
+    // directory, so also look for the driver folder next to its parent.
+    let driver = [exe_dir.join("driver"), exe_dir.join("..").join("driver")]
+        .into_iter()
+        .find(|directory| {
+            directory.join("OemVista.inf").exists() && directory.join("devcon.exe").exists()
+        })
+        .ok_or_else(|| {
+            Error::config(r"driver\OemVista.inf ou devcon.exe ausente ao lado do nuvia-gui.exe")
+        })?;
     let inf = driver.join("OemVista.inf");
     let devcon = driver.join("devcon.exe");
-    if !inf.exists() || !devcon.exists() {
-        return Err(Error::config(
-            r"driver\OemVista.inf ou devcon.exe ausente ao lado do nuvia-gui.exe",
-        ));
-    }
-
     let inf = inf.to_string_lossy();
     let devcon = devcon.to_string_lossy();
     let output = run_hidden(&devcon, &["install", &inf, "TAP0901"])
