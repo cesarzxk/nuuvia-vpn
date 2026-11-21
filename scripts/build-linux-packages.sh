@@ -71,6 +71,21 @@ EOF
 cat > "$DEB/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
+user="${SUDO_USER:-}"
+if [ -z "$user" ] && [ -n "${PKEXEC_UID:-}" ]; then
+    user="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
+fi
+if [ -z "$user" ]; then
+    user="$(logname 2>/dev/null || true)"
+fi
+case "$user" in
+    ""|root) user="" ;;
+esac
+if [ -n "$user" ]; then
+    mkdir -p /etc/nuvia
+    printf '%s\n' "$user" > /etc/nuvia/helper-user
+    chmod 0644 /etc/nuvia/helper-user
+fi
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
     systemctl enable nuvia-helper.service >/dev/null 2>&1 || true
