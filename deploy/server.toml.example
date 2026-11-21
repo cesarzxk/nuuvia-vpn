@@ -9,5 +9,7 @@ public_url = "https://relay.example.com"
 peer_ttl_secs = 60
 # Empty rooms are kept for this long so a late invitee can still join.
 room_ttl_secs = 86400
-max_peers_per_room = 8
+# Maximum participants allowed in any room. Clients may request a lower
+# per-room limit; the GUI keeps its rooms at 8, while the CLI can use up to 32.
+max_peers_per_room = 32
 max_rooms = 1024
