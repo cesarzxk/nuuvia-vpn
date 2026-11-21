@@ -8,12 +8,14 @@ LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
 
-> Status: **1.5.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
+> Status: **1.4.5**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
 > com caminho direto ou relay, status por participante, firewall por rede com
 > importação de portas de apps, descoberta de redes públicas, lista de redes
-> persistida e fechar para a bandeja (tray).
+> persistida, fechar para a bandeja (tray) e instância única. Um helper
+> privilegiado sob demanda cria o TAP e as rotas, então o app roda sem sudo ou
+> UAC depois de instalado.
 
 > O nome do produto é **Nuuvia**. Identificadores internos, binários (`nuvia`,
 > `nuvia-gui`), pacotes, caminhos de configuração e nomes de TAP mantêm a grafia
@@ -50,6 +52,12 @@ cabo — inclusive descoberta por **broadcast** e **multicast**.
 - **Minecraft Java 1.8.5 jogável Linux ↔ Windows** pelo IP virtual: o mundo
   aberto no Windows aparece no Linux e o anúncio multicast foi capturado no
   `nuvia-vpn0`.
+- **Helper privilegiado sob demanda** no Linux e no Windows: o helper é dono do
+  TAP, atribui o IP e instala as rotas de descoberta, então a GUI roda como
+  usuário normal. Ele sobe na primeira conexão e encerra após 30 segundos
+  ocioso.
+- **Instância única e bandeja**: só roda uma GUI por usuário; abrir o Nuuvia de
+  novo restaura a janela existente da bandeja ou da barra de tarefas e encerra.
 - **Modo internet (M5a)**: rendezvous, descoberta de endpoint público e
   handshake direto entre peers.
 - **Relay M5b**: quando um lado está atrás de CGNAT/NAT simétrico (celular,
@@ -177,17 +185,22 @@ As redes são salvas em `rooms.toml` (no mesmo diretório da identidade) e
 restauradas ao abrir, sem conectar automaticamente. Ao fechar a janela, o Nuuvia
 continua rodando na **bandeja do sistema**; clique no ícone para restaurar a
 janela ou use **Sair** no menu da bandeja/AJUDA. Se o ambiente não tiver bandeja
-(StatusNotifier), fechar encerra normalmente.
+(StatusNotifier), fechar encerra normalmente. Só roda uma GUI por usuário:
+abrir o Nuuvia de novo restaura a janela existente em vez de iniciar outra
+cópia.
 
-No Linux, a GUI precisa de root/CAP_NET_ADMIN para criar o TAP e instalar rotas:
+Ao rodar direto do código sem o helper instalado, a GUI ainda precisa de
+root/CAP_NET_ADMIN para criar o TAP e instalar as rotas:
 
 ```bash
 cargo build --release -p nuvia-gui
 sudo ./target/release/nuvia-gui
 ```
 
-Se abrir sem root, **Ajustes → Reabrir como admin** usa `pkexec`. No Windows o
-manifesto `requireAdministrator` já pede UAC.
+Com o `.deb` ou o instalador Windows, instale uma vez e depois abra o app como
+usuário normal: o helper abaixo cria o TAP e as rotas. Se o helper não estiver
+disponível, o launcher Linux volta ao `pkexec` e o app portátil Windows inicia
+em modo limitado.
 
 ### Helper privilegiado
 
@@ -325,7 +338,8 @@ No PC Windows:
 
 1. Rode `nuvia-setup-x86_64.exe` como administrador (recomendado) ou, no zip,
    `install-tap.ps1 -DriverDir .\driver` uma vez.
-2. Abra `nuvia-gui.exe` e aceite o UAC.
+2. Abra `nuvia-gui.exe` pelo atalho. O instalador não abre mais o app
+   automaticamente; depois de instalado, não precisa de UAC.
 3. Menu **REDE** → **CRIAR REDE** ou **ENTRAR EM REDE**.
 
 O instalador e os binários ainda não têm assinatura de código; o SmartScreen
@@ -354,11 +368,13 @@ Validado em um Windows 11 real com Minecraft Java 1.8.5.
 
 Gera:
 
-- `dist/nuvia_1.5.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
-  `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
-  `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.5.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
-  para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
+- `dist/nuvia_1.4.5_amd64.deb` — instala `/usr/bin/nuvia-gui`,
+  `/usr/bin/nuvia`, `/usr/bin/nuvia-helper`, `lanprobe`, o socket e o serviço
+  systemd, o atalho e os ícones. A GUI inicia o helper sob demanda e roda como
+  usuário normal; `pkexec` continua como fallback;
+- `dist/nuvia-1.4.5-x86_64.AppImage` — portátil. O `AppRun` usa o socket do
+  helper instalado quando existe; senão copia o binário para um caminho
+  acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
 Os dois mantêm a identidade e a lista de redes em `~/.config/nuvia/`.
