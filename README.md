@@ -8,7 +8,7 @@ Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
 
-> Status: **1.4.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> Status: **1.5.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
@@ -190,6 +190,20 @@ sudo ./target/release/nuvia-gui
 If it starts without root, **Ajustes → Reabrir como admin** uses `pkexec`. On
 Windows, the `requireAdministrator` manifest requests UAC.
 
+### Privileged helper
+
+The `.deb` installs `nuvia-helper` as a systemd service, and the Windows
+installer registers it as a service. The GUI runs as a normal user and
+exchanges TAP frames with the helper over loopback; the helper owns the TAP,
+assigns its IP and installs the discovery routes. Only installing or updating
+the app needs administrator rights.
+
+If the helper is not running, the Linux launcher falls back to the old
+`pkexec` mode and the Windows portable app starts in limited mode. The helper
+accepts only the Nuuvia TAP name, an address in `10.240.0.0/16`, prefix `/16`
+and an MTU between 576 and 9000. Its loopback token file is readable by local
+users, so avoid running it on a machine where local users are untrusted.
+
 ### Server and path
 
 The server is fixed at compile time:
@@ -338,10 +352,10 @@ Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
 
 Generates:
 
-- `dist/nuvia_1.4.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.5.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
   launcher uses `pkexec` to ask for the password and create the TAP/routes;
-- `dist/nuvia-1.4.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
+- `dist/nuvia-1.5.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
   an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
