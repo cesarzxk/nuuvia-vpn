@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use std::net::Ipv4Addr;
 use std::path::Path;
 use std::sync::Arc;
@@ -44,7 +46,7 @@ fn main() -> Result<()> {
         tracing::debug!("starting helper in foreground mode");
     }
     #[cfg(windows)]
-    if cli.service {
+    {
         let log_path = helper::state_path().with_file_name("helper.log");
         if let Some(parent) = log_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -64,16 +66,6 @@ fn main() -> Result<()> {
                     .open(&path)
                     .unwrap_or_else(|_| std::fs::File::create("NUL").expect("opening NUL"))
             })
-            .init();
-    }
-    #[cfg(windows)]
-    if !cli.service {
-        tracing_subscriber::fmt()
-            .with_env_filter(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-            )
-            .with_target(false)
             .init();
     }
     #[cfg(not(windows))]
@@ -338,6 +330,15 @@ fn validate_request(request: &StartRequest, ipv4: Ipv4Addr) -> Result<()> {
 }
 
 #[cfg(windows)]
+fn hidden_command(program: &str) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut command = std::process::Command::new(program);
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
+
+#[cfg(windows)]
 fn install_service() -> Result<()> {
     let sid = current_user_sid().context("determining the installing user SID")?;
     let config = helper::state_path().with_file_name("helper-user.txt");
@@ -356,14 +357,14 @@ fn install_service() -> Result<()> {
 
     let executable = std::env::current_exe().context("locating nuvia-helper.exe")?;
     let binary = format!("\"{}\" --service", executable.display());
-    let _ = std::process::Command::new("sc.exe")
+    let _ = hidden_command("sc.exe")
         .args(["stop", "nuvia-helper"])
         .status();
-    let _ = std::process::Command::new("sc.exe")
+    let _ = hidden_command("sc.exe")
         .args(["delete", "nuvia-helper"])
         .status();
     std::thread::sleep(std::time::Duration::from_millis(500));
-    let status = std::process::Command::new("sc.exe")
+    let status = hidden_command("sc.exe")
         .args([
             "create",
             "nuvia-helper",
@@ -379,7 +380,7 @@ fn install_service() -> Result<()> {
     let sddl = format!(
         "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRP;;;{sid})"
     );
-    let status = std::process::Command::new("sc.exe")
+    let status = hidden_command("sc.exe")
         .args(["sdset", "nuvia-helper", &sddl])
         .status()
         .context("running sc sdset")?;
@@ -389,10 +390,10 @@ fn install_service() -> Result<()> {
 
 #[cfg(windows)]
 fn uninstall_service() -> Result<()> {
-    let _ = std::process::Command::new("sc.exe")
+    let _ = hidden_command("sc.exe")
         .args(["stop", "nuvia-helper"])
         .status();
-    let status = std::process::Command::new("sc.exe")
+    let status = hidden_command("sc.exe")
         .args(["delete", "nuvia-helper"])
         .status()
         .context("running sc delete")?;
@@ -440,12 +441,12 @@ fn write_state(path: &Path, state: &HelperState) -> Result<()> {
         let sid = allowed_sid();
         if let Some(sid) = sid {
             if let Some(parent) = path.parent() {
-                let _ = std::process::Command::new("icacls")
+                let _ = hidden_command("icacls")
                     .arg(parent)
                     .args(["/grant:r", &format!("*{sid}:(RX)")])
                     .status();
             }
-            let _ = std::process::Command::new("icacls")
+            let _ = hidden_command("icacls")
                 .arg(path)
                 .args([
                     "/inheritance:r",
@@ -457,12 +458,12 @@ fn write_state(path: &Path, state: &HelperState) -> Result<()> {
                 .status();
         } else {
             if let Some(parent) = path.parent() {
-                let _ = std::process::Command::new("icacls")
+                let _ = hidden_command("icacls")
                     .arg(parent)
                     .args(["/grant:r", "*S-1-5-32-545:RX"])
                     .status();
             }
-            let _ = std::process::Command::new("icacls")
+            let _ = hidden_command("icacls")
                 .arg(path)
                 .args(["/grant:r", "*S-1-5-32-545:R"])
                 .status();
@@ -523,7 +524,7 @@ fn allowed_sid() -> Option<String> {
 
 #[cfg(windows)]
 fn current_user_sid() -> Option<String> {
-    let output = std::process::Command::new("whoami")
+    let output = hidden_command("whoami")
         .args(["/user", "/fo", "csv", "/nh"])
         .output()
         .ok()?;
