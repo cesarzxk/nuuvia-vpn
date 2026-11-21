@@ -199,8 +199,9 @@ rotas de descoberta. Só a instalação/atualização precisa de administrador.
 Se o helper não estiver rodando, o launcher Linux volta ao modo antigo com
 `pkexec` e o app portátil Windows inicia em modo limitado. O helper aceita
 apenas o nome do TAP do Nuuvia, endereço em `10.240.0.0/16`, prefixo `/16` e
-MTU entre 576 e 9000. O arquivo de token no loopback é legível por usuários
-locais; evite usá-lo em máquinas com usuários locais não confiáveis.
+MTU entre 576 e 9000. O token no loopback fica restrito ao usuário que
+instalou o app; instale com a conta que você vai usar. Se nenhum usuário for
+detectado, o token volta a ser legível por usuários locais.
 
 ### Servidor e caminho
 
