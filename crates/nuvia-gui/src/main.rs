@@ -167,7 +167,7 @@ fn run(renderer: eframe::Renderer, instance: Arc<instance::SingleInstance>) -> e
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([380.0, 540.0])
             .with_min_inner_size([360.0, 480.0])
-            .with_title("Nuuvia VPN")
+            .with_title(format!("Nuuvia VPN {}", env!("CARGO_PKG_VERSION")))
             .with_app_id("nuvia")
             .with_icon(icon()),
         ..Default::default()
