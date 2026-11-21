@@ -14,7 +14,10 @@ nuvia-core = { path = "../nuvia-core" }
 nuvia-protocol = { path = "../nuvia-protocol" }
 anyhow.workspace = true
 eframe = "0.30"
+fs2 = "0.4"
 hex.workspace = true
+rand.workspace = true
+serde_json.workspace = true
 libc.workspace = true
 serde.workspace = true
 toml.workspace = true
