@@ -1,6 +1,6 @@
 ; nuvia VPN installer (NSIS 3)
 ; Build from the repository root:
-;   makensis -DVERSION=1.4.0 deploy/windows/nuvia.nsi
+;   makensis -DVERSION=1.5.0 deploy/windows/nuvia.nsi
 
 Unicode true
 ManifestDPIAware true
@@ -12,13 +12,14 @@ CRCCheck on
 !include "x64.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.4.0"
+  !define VERSION "1.5.0"
 !endif
 
 !ifndef ROOT
   !define ROOT "${__FILEDIR__}/../.."
 !endif
 !define APP_EXE "${ROOT}/dist/windows/nuvia-gui.exe"
+!define HELPER_EXE "${ROOT}/dist/windows/nuvia-helper.exe"
 !define CLI_EXE "${ROOT}/dist/windows/nuvia.exe"
 !define PROBE_EXE "${ROOT}/dist/windows/lanprobe.exe"
 !define DRIVER_DIR "${ROOT}/dist/windows/driver"
@@ -92,6 +93,7 @@ Section "Nuuvia VPN" SEC_MAIN
 
   SetOutPath "$INSTDIR"
   File "/oname=nuvia-gui.exe" "${APP_EXE}"
+  File "/oname=nuvia-helper.exe" "${HELPER_EXE}"
   File "/oname=nuvia.exe" "${CLI_EXE}"
   File "/oname=lanprobe.exe" "${PROBE_EXE}"
   File "/oname=install-tap.ps1" "${TAP_SCRIPT}"
@@ -138,12 +140,23 @@ Section "Nuuvia VPN" SEC_MAIN
   ${If} $0 != 0
     DetailPrint "Aviso: install-tap.ps1 retornou $0; o Nuuvia tentará reparar o TAP ao conectar."
   ${EndIf}
+
+  DetailPrint "Instalando o serviço privilegiado do Nuuvia..."
+  nsExec::ExecToLog '"$INSTDIR\nuvia-helper.exe" --install-service'
+  Pop $0
+  ${If} $0 != 0
+    DetailPrint "Aviso: não foi possível instalar o serviço nuvia-helper ($0)."
+  ${EndIf}
 SectionEnd
 
 Section "Uninstall"
   nsExec::Exec 'taskkill /F /T /IM nuvia-gui.exe'
   Pop $0
   nsExec::Exec 'taskkill /F /T /IM nuvia.exe'
+  Pop $0
+  nsExec::Exec 'taskkill /F /IM nuvia-helper.exe'
+  Pop $0
+  nsExec::ExecToLog '"$INSTDIR\nuvia-helper.exe" --uninstall-service'
   Pop $0
   Sleep 500
 
