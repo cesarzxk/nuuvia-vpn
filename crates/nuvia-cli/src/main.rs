@@ -96,6 +96,11 @@ struct UpArgs {
     #[arg(long, default_value = "0.0.0.0:42424")]
     bind: SocketAddr,
 
+    /// Maximum participants when creating an internet room (2-32). The GUI
+    /// keeps creating rooms with 8; use this from the CLI for larger rooms.
+    #[arg(long, default_value_t = nuvia_protocol::DEFAULT_MAX_PEERS, value_parser = clap::value_parser!(u16).range(2..=32))]
+    max_peers: u16,
+
     /// Peer in the form <public_key_hex>@<ip:port> (LAN mode).
     #[arg(long, conflicts_with = "server")]
     peer: Option<String>,
@@ -240,6 +245,7 @@ async fn up(path: &std::path::Path, args: UpArgs) -> Result<()> {
         );
         rendezvous.set_local_endpoints(socket.local_addr()?);
         rendezvous.name = hostname();
+        rendezvous.max_peers = Some(args.max_peers);
         let client = RendezvousClient::new(rendezvous).context("creating rendezvous client")?;
 
         println!("server:        {server}");
