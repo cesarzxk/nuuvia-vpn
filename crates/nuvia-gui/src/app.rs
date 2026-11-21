@@ -1486,11 +1486,8 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .default_width(theme::MODAL_WIDTH)
-            .vscroll(true)
-            .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -12.0])
-            .frame(theme::modal_frame_scroll())
+            .frame(theme::modal_frame())
             .show(ctx, |ui| {
                 let content_width = theme::MODAL_WIDTH;
                 ui.set_width(content_width);
