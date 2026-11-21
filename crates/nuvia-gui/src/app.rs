@@ -356,7 +356,7 @@ impl NuviaApp {
             identity_name,
             rooms_path,
             language,
-            elevated: backend::is_elevated(),
+            elevated: backend::is_elevated() || nuvia_core::helper::available(),
             show_settings: false,
             show_about: false,
             show_firewall: false,
@@ -674,8 +674,9 @@ impl NuviaApp {
         let name = room.name.clone();
         self.active_room = Some(name.clone());
         // The TAP is shared by every room; install the discovery routes only
-        // once per app session, not every time a room is toggled.
-        if self.discovery.is_none() {
+        // once per app session, not every time a room is toggled. When the
+        // privileged helper owns the TAP it also owns the routes.
+        if self.discovery.is_none() && !nuvia_core::helper::active() {
             self.discovery = Some(DiscoveryRoutes::install(&tap));
             self.log_for(&name, t.log_routes_installed);
             self.toast(t.toast_discovery_active);
