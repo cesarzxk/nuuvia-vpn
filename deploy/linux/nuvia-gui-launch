@@ -1,8 +1,12 @@
 #!/bin/sh
-# Starts the GUI with the privileges needed for TAP/rotas. The app creates the
-# user-session tray helper itself when running as root.
-
+# Starts the GUI. When the privileged nuvia-helper service is running, the GUI
+# stays unprivileged and talks to it over loopback. Otherwise fall back to the
+# original pkexec launch so a missing helper does not break anyone.
 if [ "$(id -u)" -eq 0 ]; then
+    exec /usr/bin/nuvia-gui "$@"
+fi
+
+if systemctl is-active --quiet nuvia-helper 2>/dev/null; then
     exec /usr/bin/nuvia-gui "$@"
 fi
 
