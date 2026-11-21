@@ -8,7 +8,7 @@ LAN virtual criptografada para jogos. O objetivo é abrir um jogo, hospedar uma
 partida em LAN e o outro computador enxergar a sala como se estivesse no mesmo
 cabo — inclusive descoberta por **broadcast** e **multicast**.
 
-> Status: **1.4.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
+> Status: **1.5.0**. O Minecraft Java 1.8.5 funciona Linux ↔ Windows na LAN e
 > **entre redes diferentes** via relay cifrado na VPS Oracle em São Paulo. A GUI
 > compacta (egui) tem múltiplas redes, um único TAP/IP por máquina, mesh 2–8
 > com caminho direto ou relay, status por participante, firewall por rede com
@@ -189,6 +189,19 @@ sudo ./target/release/nuvia-gui
 Se abrir sem root, **Ajustes → Reabrir como admin** usa `pkexec`. No Windows o
 manifesto `requireAdministrator` já pede UAC.
 
+### Helper privilegiado
+
+O `.deb` instala o `nuvia-helper` como serviço systemd, e o instalador Windows
+o registra como serviço. A GUI roda como usuário normal e troca frames do TAP
+com o helper via loopback; o helper é dono do TAP, atribui o IP e instala as
+rotas de descoberta. Só a instalação/atualização precisa de administrador.
+
+Se o helper não estiver rodando, o launcher Linux volta ao modo antigo com
+`pkexec` e o app portátil Windows inicia em modo limitado. O helper aceita
+apenas o nome do TAP do Nuuvia, endereço em `10.240.0.0/16`, prefixo `/16` e
+MTU entre 576 e 9000. O arquivo de token no loopback é legível por usuários
+locais; evite usá-lo em máquinas com usuários locais não confiáveis.
+
 ### Servidor e caminho
 
 O servidor é fixo na compilação:
@@ -337,10 +350,10 @@ Validado em um Windows 11 real com Minecraft Java 1.8.5.
 
 Gera:
 
-- `dist/nuvia_1.4.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
+- `dist/nuvia_1.5.0_amd64.deb` — instala `/usr/bin/nuvia-gui`,
   `/usr/bin/nuvia`, `/usr/bin/lanprobe`, o atalho e os ícones. O launcher usa
   `pkexec` para pedir a senha e criar o TAP/rotas;
-- `dist/nuvia-1.4.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
+- `dist/nuvia-1.5.0-x86_64.AppImage` — portátil. O `AppRun` copia o binário
   para um caminho acessível e chama `pkexec`; requer FUSE (`libfuse2`) ou
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
