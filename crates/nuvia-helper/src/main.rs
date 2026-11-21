@@ -258,6 +258,18 @@ fn validate_request(request: &StartRequest, ipv4: Ipv4Addr) -> Result<()> {
 
 #[cfg(windows)]
 fn install_service() -> Result<()> {
+    if let Some(sid) = current_user_sid() {
+        let config = helper::state_path().with_file_name("helper-user.txt");
+        if let Some(parent) = config.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating {}", parent.display()))?;
+        }
+        std::fs::write(&config, sid).with_context(|| format!("writing {}", config.display()))?;
+        tracing::info!(path = %config.display(), "restricted helper token to the installing user");
+    } else {
+        tracing::warn!("could not determine the installing user; the helper token will be readable by all local users");
+    }
+
     let executable = std::env::current_exe().context("locating nuvia-helper.exe")?;
     let binary = format!("\"{}\" --service", executable.display());
     let _ = std::process::Command::new("sc.exe")
@@ -297,6 +309,9 @@ fn uninstall_service() -> Result<()> {
         .status()
         .context("running sc delete")?;
     ensure!(status.success(), "sc delete failed");
+    let state = helper::state_path();
+    let _ = std::fs::remove_file(&state);
+    let _ = std::fs::remove_file(state.with_file_name("helper-user.txt"));
     Ok(())
 }
 
@@ -314,24 +329,125 @@ fn write_state(path: &Path, state: &HelperState) -> Result<()> {
     let text = serde_json::to_string(state)?;
     let temporary = path.with_extension("json.tmp");
     std::fs::write(&temporary, text)?;
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o644))?;
+
+        let owner = allowed_user().and_then(|name| user_ids(&name));
+        let mode = if owner.is_some() { 0o600 } else { 0o644 };
+        std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(mode))?;
+        if let Some((uid, gid)) = owner {
+            if let Err(error) = std::os::unix::fs::chown(&temporary, Some(uid), Some(gid)) {
+                tracing::warn!(%error, "could not restrict the helper token owner; leaving it readable");
+                std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o644))?;
+            }
+        }
     }
+
     std::fs::rename(&temporary, path)?;
+
     #[cfg(windows)]
     {
-        if let Some(parent) = path.parent() {
+        let sid = allowed_sid();
+        if let Some(sid) = sid {
+            if let Some(parent) = path.parent() {
+                let _ = std::process::Command::new("icacls")
+                    .arg(parent)
+                    .args(["/grant:r", &format!("*{sid}:(RX)")])
+                    .status();
+            }
             let _ = std::process::Command::new("icacls")
-                .arg(parent)
-                .args(["/grant", "*S-1-5-32-545:RX"])
+                .arg(path)
+                .args([
+                    "/inheritance:r",
+                    "/grant:r",
+                    "*S-1-5-18:(F)",
+                    "*S-1-5-32-544:(F)",
+                    &format!("*{sid}:(R)"),
+                ])
+                .status();
+        } else {
+            if let Some(parent) = path.parent() {
+                let _ = std::process::Command::new("icacls")
+                    .arg(parent)
+                    .args(["/grant:r", "*S-1-5-32-545:RX"])
+                    .status();
+            }
+            let _ = std::process::Command::new("icacls")
+                .arg(path)
+                .args(["/grant:r", "*S-1-5-32-545:R"])
                 .status();
         }
-        let _ = std::process::Command::new("icacls")
-            .arg(path)
-            .args(["/grant", "*S-1-5-32-545:R"])
-            .status();
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn allowed_user() -> Option<String> {
+    if let Ok(value) = std::env::var("NUVIA_HELPER_USER") {
+        let value = value.trim();
+        if !value.is_empty() && value != "root" {
+            return Some(value.to_string());
+        }
+    }
+    let value = std::fs::read_to_string("/etc/nuvia/helper-user").ok()?;
+    let value = value.trim();
+    if value.is_empty() || value == "root" {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+#[cfg(unix)]
+fn user_ids(name: &str) -> Option<(u32, u32)> {
+    let uid = std::process::Command::new("id")
+        .args(["-u", name])
+        .output()
+        .ok()?;
+    let gid = std::process::Command::new("id")
+        .args(["-g", name])
+        .output()
+        .ok()?;
+    if !uid.status.success() || !gid.status.success() {
+        return None;
+    }
+    Some((
+        String::from_utf8_lossy(&uid.stdout).trim().parse().ok()?,
+        String::from_utf8_lossy(&gid.stdout).trim().parse().ok()?,
+    ))
+}
+
+#[cfg(windows)]
+fn allowed_sid() -> Option<String> {
+    if let Ok(value) = std::env::var("NUVIA_HELPER_SID") {
+        let value = value.trim();
+        if value.starts_with("S-1-") {
+            return Some(value.to_string());
+        }
+    }
+    let value =
+        std::fs::read_to_string(helper::state_path().with_file_name("helper-user.txt")).ok()?;
+    let value = value.trim();
+    value.starts_with("S-1-").then(|| value.to_string())
+}
+
+#[cfg(windows)]
+fn current_user_sid() -> Option<String> {
+    let output = std::process::Command::new("whoami")
+        .args(["/user", "/fo", "csv", "/nh"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let sid = text
+        .rsplit(',')
+        .next()?
+        .trim()
+        .trim_matches('"')
+        .to_string();
+    sid.starts_with("S-1-").then_some(sid)
 }
