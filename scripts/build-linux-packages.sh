@@ -6,14 +6,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-: "${VERSION:=1.4.0}"
+: "${VERSION:=1.5.0}"
 ARCH="amd64"
 OUT="$ROOT/dist"
 WORK="$OUT/linux"
 APPIMAGE_TOOL="${APPIMAGE_TOOL:-/tmp/nuvia-build/appimagetool-x86_64.AppImage}"
 
 echo "==> building release binaries"
-cargo build --release -p nuvia-gui -p nuvia-cli -p nuvia-probe
+cargo build --release -p nuvia-gui -p nuvia-cli -p nuvia-probe -p nuvia-helper
 
 rm -rf "$WORK"
 mkdir -p "$WORK" "$OUT"
@@ -24,6 +24,7 @@ mkdir -p "$WORK" "$OUT"
 DEB="$WORK/deb/nuvia_${VERSION}_${ARCH}"
 mkdir -p \
     "$DEB/DEBIAN" \
+    "$DEB/lib/systemd/system" \
     "$DEB/usr/bin" \
     "$DEB/usr/share/applications" \
     "$DEB/usr/share/icons/hicolor/256x256/apps" \
@@ -32,9 +33,11 @@ mkdir -p \
     "$DEB/usr/share/doc/nuvia"
 
 install -m 0755 target/release/nuvia-gui "$DEB/usr/bin/nuvia-gui"
+install -m 0755 target/release/nuvia-helper "$DEB/usr/bin/nuvia-helper"
 install -m 0755 target/release/nuvia "$DEB/usr/bin/nuvia"
 install -m 0755 target/release/lanprobe "$DEB/usr/bin/lanprobe"
 install -m 0755 deploy/linux/nuvia-gui-launch "$DEB/usr/bin/nuvia-gui-launch"
+install -m 0644 deploy/linux/nuvia-helper.service "$DEB/lib/systemd/system/nuvia-helper.service"
 install -m 0644 deploy/linux/nuvia.desktop "$DEB/usr/share/applications/nuvia.desktop"
 install -m 0644 deploy/linux/nuvia-256.png "$DEB/usr/share/icons/hicolor/256x256/apps/nuvia.png"
 install -m 0644 deploy/linux/nuvia-128.png "$DEB/usr/share/icons/hicolor/128x128/apps/nuvia.png"
@@ -50,7 +53,7 @@ Section: net
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $SIZE
-Depends: libc6 (>= 2.31), libx11-6, libxkbcommon0, libgl1, libegl1, policykit-1 | pkexec
+Depends: libc6 (>= 2.31), libx11-6, libxkbcommon0, libgl1, libegl1, policykit-1 | pkexec, systemd
 Recommends: libwayland-client0
 Maintainer: nuvia <nuvia@localhost>
 Homepage: https://github.com/
@@ -64,6 +67,27 @@ cat > "$DEB/usr/share/doc/nuvia/copyright" <<'EOF'
 nuvia is distributed under the MIT license.
 The bundled Windows driver (not part of this package) is GPLv2.
 EOF
+
+cat > "$DEB/DEBIAN/postinst" <<'EOF'
+#!/bin/sh
+set -e
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable nuvia-helper.service >/dev/null 2>&1 || true
+    systemctl restart nuvia-helper.service >/dev/null 2>&1 || true
+fi
+exit 0
+EOF
+cat > "$DEB/DEBIAN/prerm" <<'EOF'
+#!/bin/sh
+set -e
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop nuvia-helper.service >/dev/null 2>&1 || true
+    systemctl disable nuvia-helper.service >/dev/null 2>&1 || true
+fi
+exit 0
+EOF
+chmod 0755 "$DEB/DEBIAN/postinst" "$DEB/DEBIAN/prerm"
 
 dpkg-deb --root-owner-group --build "$DEB" "$WORK/nuvia_${VERSION}_${ARCH}.deb"
 mv -f "$WORK/nuvia_${VERSION}_${ARCH}.deb" "$OUT/nuvia_${VERSION}_${ARCH}.deb"
@@ -81,6 +105,7 @@ mkdir -p \
     "$APPDIR/usr/share/icons/hicolor/64x64/apps"
 
 install -m 0755 target/release/nuvia-gui "$APPDIR/usr/bin/nuvia-gui"
+install -m 0755 target/release/nuvia-helper "$APPDIR/usr/bin/nuvia-helper"
 install -m 0755 target/release/nuvia "$APPDIR/usr/bin/nuvia"
 install -m 0755 target/release/lanprobe "$APPDIR/usr/bin/lanprobe"
 install -m 0644 deploy/linux/nuvia-256.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/nuvia.png"
@@ -108,6 +133,9 @@ cat > "$APPDIR/AppRun" <<'EOF'
 HERE="$(dirname "$(readlink -f "$0")")"
 BIN="$HERE/usr/bin/nuvia-gui"
 if [ "$(id -u)" -eq 0 ]; then
+    exec "$BIN" "$@"
+fi
+if systemctl is-active --quiet nuvia-helper 2>/dev/null; then
     exec "$BIN" "$@"
 fi
 if command -v pkexec >/dev/null 2>&1; then
