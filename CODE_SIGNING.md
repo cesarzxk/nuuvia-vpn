@@ -58,7 +58,7 @@ the NSIS script:
 
 - **ProductName:** Nuuvia
 - **ProductVersion / FileVersion:** the workspace version in `Cargo.toml`
-  (currently `1.2.4`)
+  (currently `1.4.5`)
 - **CompanyName:** Nuuvia contributors
 - **LegalCopyright:** MIT License
 
