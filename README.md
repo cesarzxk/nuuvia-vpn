@@ -124,7 +124,9 @@ not ask for a server, path, TAP, port, role, or IP.
 
 The first peer creates the room on the server; the others join with the same
 name and password. The GUI supports up to 8 participants per room and several
-rooms at once, all on the same local TAP/IP. To play:
+rooms at once, all on the same local TAP/IP. The server accepts up to 32, so
+`nuvia up --max-peers N` can create a larger room while the GUI keeps its
+default of 8. To play:
 
 1. Keep the room connected.
 2. Open the game **after** Nuuvia and use **Open to LAN**.
@@ -278,6 +280,8 @@ The lower `public_key` gets `.1` and the higher one gets `.2`, inside
 `10.240.<room-octet>.0/24`. Use `--ip 10.240.x.y/24` to force another address
 and `--room-token` to use a standalone token. `--relay` forces the VPS;
 `--direct` forces P2P only. Without `--relay`/`--direct`, the CLI uses AUTO.
+To create a room with more than 8 participants, add `--max-peers N` (2–32);
+the GUI keeps creating rooms with 8.
 
 ### Manual LAN
 
