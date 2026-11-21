@@ -12,6 +12,7 @@
 
 pub mod error;
 pub mod firewall;
+pub mod helper;
 pub mod identity;
 pub mod mesh;
 pub mod noise;
