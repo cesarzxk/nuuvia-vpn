@@ -5,8 +5,8 @@ use getifaddrs::{getifaddrs, InterfaceFlags};
 
 use nuvia_protocol::{
     hex_string, parse_hex, Hello, HelloAck, PeerInfo, PublicRoom, PublicRoomsResponse,
-    RegisterRequest, RegisterResponse, ACK_INVALID_TOKEN, ACK_OK, ACK_ROOM_NOT_FOUND,
-    DEFAULT_SERVER_UDP_PORT, PROTOCOL_VERSION,
+    RegisterRequest, RegisterResponse, ACK_INVALID_TOKEN, ACK_OK, ACK_ROOM_FULL,
+    ACK_ROOM_NOT_FOUND, DEFAULT_SERVER_UDP_PORT, PROTOCOL_VERSION,
 };
 use rand::RngCore;
 use tokio::net::UdpSocket;
@@ -35,6 +35,9 @@ pub struct RendezvousConfig {
     pub public: bool,
     /// Directory hint: the room was created with a password.
     pub has_password: bool,
+    /// Requested capacity when creating a room. `None` keeps the server
+    /// default (8), which is what the GUI uses.
+    pub max_peers: Option<u16>,
 }
 
 impl RendezvousConfig {
@@ -58,6 +61,7 @@ impl RendezvousConfig {
             room_name: None,
             public: false,
             has_password: false,
+            max_peers: None,
         }
     }
 
@@ -104,6 +108,7 @@ impl RendezvousClient {
             room_name: self.config.room_name.clone(),
             public: self.config.public,
             has_password: self.config.has_password,
+            max_peers: self.config.max_peers,
             local_endpoints: self
                 .config
                 .local_endpoints
@@ -187,6 +192,7 @@ impl RendezvousClient {
                                 ACK_ROOM_NOT_FOUND => {
                                     return Err(Error::config("server does not know this room yet"))
                                 }
+                                ACK_ROOM_FULL => return Err(Error::config("room is full")),
                                 other => {
                                     return Err(Error::Http(format!(
                                         "unexpected hello status {other}"
