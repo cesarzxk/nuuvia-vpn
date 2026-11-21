@@ -41,8 +41,6 @@ BrandingText "Nuuvia"
 !define MUI_ICON "${ICON}"
 !define MUI_UNICON "${ICON}"
 !define MUI_ABORTWARNING
-!define MUI_FINISHPAGE_RUN "$INSTDIR\nuvia-gui.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Abrir o Nuuvia VPN agora"
 !define MUI_WELCOMEPAGE_TITLE "Nuuvia VPN"
 !define MUI_WELCOMEPAGE_TEXT "LAN virtual criptografada para jogos, Linux e Windows.$\r$\n$\r$\nO instalador copia o Nuuvia e o driver TAP assinado. É preciso ser administrador."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta de instalação do Nuuvia."
