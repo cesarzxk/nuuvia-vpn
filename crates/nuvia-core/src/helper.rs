@@ -181,7 +181,10 @@ async fn connect_windows_retry(address: SocketAddr) -> Result<TcpStream> {
 
 #[cfg(windows)]
 fn start_windows_service() {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let _ = std::process::Command::new("sc.exe")
+        .creation_flags(CREATE_NO_WINDOW)
         .args(["start", "nuvia-helper"])
         .output();
 }
