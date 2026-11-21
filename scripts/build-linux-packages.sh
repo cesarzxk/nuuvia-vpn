@@ -38,6 +38,7 @@ install -m 0755 target/release/nuvia "$DEB/usr/bin/nuvia"
 install -m 0755 target/release/lanprobe "$DEB/usr/bin/lanprobe"
 install -m 0755 deploy/linux/nuvia-gui-launch "$DEB/usr/bin/nuvia-gui-launch"
 install -m 0644 deploy/linux/nuvia-helper.service "$DEB/lib/systemd/system/nuvia-helper.service"
+install -m 0644 deploy/linux/nuvia-helper.socket "$DEB/lib/systemd/system/nuvia-helper.socket"
 install -m 0644 deploy/linux/nuvia.desktop "$DEB/usr/share/applications/nuvia.desktop"
 install -m 0644 deploy/linux/nuvia-256.png "$DEB/usr/share/icons/hicolor/256x256/apps/nuvia.png"
 install -m 0644 deploy/linux/nuvia-128.png "$DEB/usr/share/icons/hicolor/128x128/apps/nuvia.png"
@@ -81,15 +82,26 @@ fi
 case "$user" in
     ""|root) user="" ;;
 esac
+mkdir -p /etc/nuvia
 if [ -n "$user" ]; then
-    mkdir -p /etc/nuvia
     printf '%s\n' "$user" > /etc/nuvia/helper-user
     chmod 0644 /etc/nuvia/helper-user
 fi
+if [ ! -f /etc/nuvia/helper.json ]; then
+    token="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+    printf '{"port":4647,"token":"%s"}\n' "$token" > /etc/nuvia/helper.json
+fi
+if [ -n "$user" ]; then
+    chown "$user" /etc/nuvia/helper.json 2>/dev/null || true
+    chmod 0600 /etc/nuvia/helper.json
+else
+    chmod 0644 /etc/nuvia/helper.json
+fi
 if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable nuvia-helper.service >/dev/null 2>&1 || true
+    systemctl stop nuvia-helper.service >/dev/null 2>&1 || true
     systemctl daemon-reload >/dev/null 2>&1 || true
-    systemctl enable nuvia-helper.service >/dev/null 2>&1 || true
-    systemctl restart nuvia-helper.service >/dev/null 2>&1 || true
+    systemctl enable --now nuvia-helper.socket >/dev/null 2>&1 || true
 fi
 exit 0
 EOF
@@ -97,8 +109,9 @@ cat > "$DEB/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 set -e
 if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop nuvia-helper.socket >/dev/null 2>&1 || true
+    systemctl disable nuvia-helper.socket >/dev/null 2>&1 || true
     systemctl stop nuvia-helper.service >/dev/null 2>&1 || true
-    systemctl disable nuvia-helper.service >/dev/null 2>&1 || true
 fi
 exit 0
 EOF
@@ -150,7 +163,7 @@ BIN="$HERE/usr/bin/nuvia-gui"
 if [ "$(id -u)" -eq 0 ]; then
     exec "$BIN" "$@"
 fi
-if systemctl is-active --quiet nuvia-helper 2>/dev/null; then
+if systemctl is-active --quiet nuvia-helper.socket 2>/dev/null || systemctl is-active --quiet nuvia-helper.service 2>/dev/null; then
     exec "$BIN" "$@"
 fi
 if command -v pkexec >/dev/null 2>&1; then
