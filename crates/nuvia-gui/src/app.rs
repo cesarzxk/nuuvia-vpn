@@ -992,6 +992,13 @@ impl NuviaApp {
                     .font(FontId::new(13.0, FontFamily::Monospace))
                     .color(theme::TEXT),
             );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.label(
+                    RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
+                        .font(FontId::new(10.0, FontFamily::Monospace))
+                        .color(theme::MUTED),
+                );
+            });
         });
 
         let rect = ui.max_rect();
