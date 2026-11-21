@@ -5,8 +5,11 @@ mod apps;
 mod backend;
 mod config;
 mod i18n;
+mod instance;
 mod theme;
 mod tray;
+
+use std::sync::Arc;
 
 use eframe::egui;
 
@@ -18,6 +21,13 @@ fn main() -> eframe::Result<()> {
 
     init_logging();
 
+    let Some(instance) = instance::SingleInstance::acquire() else {
+        tracing::info!("another instance is running; activating its window");
+        instance::SingleInstance::activate_existing();
+        return Ok(());
+    };
+    let instance = Arc::new(instance);
+
     #[cfg(windows)]
     if is_software_copy() {
         // This copy lives next to Mesa's `opengl32.dll`. Force the CPU
@@ -27,9 +37,9 @@ fn main() -> eframe::Result<()> {
     }
 
     #[cfg(windows)]
-    let result = run_windows();
+    let result = run_windows(instance.clone());
     #[cfg(not(windows))]
-    let result = run(eframe::Renderer::Glow);
+    let result = run(eframe::Renderer::Glow, instance.clone());
 
     if let Err(error) = &result {
         tracing::error!(%error, "eframe exited with an error");
@@ -47,30 +57,31 @@ fn main() -> eframe::Result<()> {
 /// renderer fails, the other one is tried; if both fail, the copy in `soft\`
 /// is started with Mesa's software OpenGL (llvmpipe).
 #[cfg(windows)]
-fn run_windows() -> eframe::Result<()> {
+fn run_windows(instance: Arc<instance::SingleInstance>) -> eframe::Result<()> {
     let preferred = std::env::var("NUVIA_RENDERER")
         .unwrap_or_default()
         .to_ascii_lowercase();
 
     let result = match preferred.as_str() {
-        "wgpu" | "dx12" | "vulkan" => match run(eframe::Renderer::Wgpu) {
+        "wgpu" | "dx12" | "vulkan" => match run(eframe::Renderer::Wgpu, instance.clone()) {
             Ok(()) => Ok(()),
             Err(error) => {
                 tracing::warn!(%error, "wgpu renderer failed; retrying with OpenGL");
-                run(eframe::Renderer::Glow)
+                run(eframe::Renderer::Glow, instance.clone())
             }
         },
-        _ => match run(eframe::Renderer::Glow) {
+        _ => match run(eframe::Renderer::Glow, instance.clone()) {
             Ok(()) => Ok(()),
             Err(error) => {
                 tracing::warn!(%error, "OpenGL renderer failed; retrying with wgpu");
-                run(eframe::Renderer::Wgpu)
+                run(eframe::Renderer::Wgpu, instance.clone())
             }
         },
     };
 
     if let Err(error) = &result {
         tracing::error!(%error, "both hardware renderers failed");
+        instance.release();
         if relaunch_with_software_gl() {
             std::process::exit(0);
         }
@@ -147,7 +158,7 @@ fn relaunch_with_software_gl() -> bool {
     }
 }
 
-fn run(renderer: eframe::Renderer) -> eframe::Result<()> {
+fn run(renderer: eframe::Renderer, instance: Arc<instance::SingleInstance>) -> eframe::Result<()> {
     tracing::info!(?renderer, "starting GUI renderer");
 
     let options = eframe::NativeOptions {
@@ -167,7 +178,7 @@ fn run(renderer: eframe::Renderer) -> eframe::Result<()> {
         options,
         Box::new(|cc| {
             theme::install(&cc.egui_ctx);
-            Ok(Box::new(app::NuviaApp::new(cc)))
+            Ok(Box::new(app::NuviaApp::new(cc, instance)))
         }),
     )
 }

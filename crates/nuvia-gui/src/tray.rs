@@ -81,7 +81,7 @@ impl Tray {
     }
 }
 
-fn show(ctx: &egui::Context) {
+pub(crate) fn show(ctx: &egui::Context) {
     ctx.send_viewport_cmd(ViewportCommand::Visible(true));
     ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
     ctx.send_viewport_cmd(ViewportCommand::Focus);

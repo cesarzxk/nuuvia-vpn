@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::apps::{self, ListeningApp};
 use crate::backend::{self, Backend, Event, PeerView, Phase, RoomConfig};
 use crate::i18n::{render, Lang, Strings};
+use crate::instance::SingleInstance;
 use crate::theme;
 use crate::tray::Tray;
 
@@ -253,7 +254,7 @@ pub struct NuviaApp {
 }
 
 impl NuviaApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, instance: Arc<SingleInstance>) -> Self {
         let lang_override = Lang::from_env();
         let mut language = lang_override.unwrap_or_else(Lang::from_locale);
         let identity_path = backend::user_identity_path();
@@ -328,6 +329,7 @@ impl NuviaApp {
         let selected = if rooms.is_empty() { None } else { Some(0) };
         let quitting = Arc::new(AtomicBool::new(false));
         let tray = Tray::spawn(cc.egui_ctx.clone(), quitting.clone(), language);
+        instance.start_activation(cc.egui_ctx.clone());
         let (firewall_global_ports, firewall_global_icmp) =
             port_rows_from_profile(&firewall_default);
 
