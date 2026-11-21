@@ -6,7 +6,7 @@ if [ "$(id -u)" -eq 0 ]; then
     exec /usr/bin/nuvia-gui "$@"
 fi
 
-if systemctl is-active --quiet nuvia-helper 2>/dev/null; then
+if systemctl is-active --quiet nuvia-helper.socket 2>/dev/null || systemctl is-active --quiet nuvia-helper.service 2>/dev/null; then
     exec /usr/bin/nuvia-gui "$@"
 fi
 
