@@ -21,6 +21,35 @@ pub const PURPLE: Color32 = Color32::from_rgb(139, 108, 255);
 pub const AMBER: Color32 = Color32::from_rgb(255, 190, 92);
 pub const RED: Color32 = Color32::from_rgb(255, 92, 112);
 
+/// Shared content width for every modal.
+pub const MODAL_WIDTH: f32 = 320.0;
+/// Padding between the modal frame and its content.
+pub const MODAL_MARGIN: f32 = 18.0;
+
+/// Frame shared by every modal so side paddings stay consistent.
+pub fn modal_frame() -> Frame {
+    modal_frame_with_margin(Margin::same(MODAL_MARGIN))
+}
+
+/// Frame for modals with a vertical scrollbar. The smaller right margin
+/// compensates for the scrollbar so the visible padding matches the left side.
+pub fn modal_frame_scroll() -> Frame {
+    modal_frame_with_margin(Margin {
+        left: MODAL_MARGIN,
+        right: 4.0,
+        top: 14.0,
+        bottom: 14.0,
+    })
+}
+
+fn modal_frame_with_margin(margin: Margin) -> Frame {
+    Frame::none()
+        .fill(CARD)
+        .rounding(Rounding::same(14.0))
+        .stroke(Stroke::new(1.0_f32, BORDER))
+        .inner_margin(margin)
+}
+
 pub fn install(ctx: &Context) {
     setup_fonts(ctx);
 
