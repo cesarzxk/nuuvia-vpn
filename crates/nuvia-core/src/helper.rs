@@ -104,25 +104,24 @@ pub async fn connect(request: &StartRequest) -> Result<TcpStream> {
                 #[cfg(windows)]
                 {
                     start_windows_service();
-                    let deadline = tokio::time::Instant::now() + Duration::from_secs(6);
-                    loop {
-                        match TcpStream::connect(address).await {
-                            Ok(stream) => break stream,
-                            Err(error) => {
-                                if tokio::time::Instant::now() >= deadline {
-                                    return Err(Error::Io(error));
-                                }
-                                tokio::time::sleep(Duration::from_millis(250)).await;
-                            }
-                        }
-                    }
+                    connect_windows_retry(address).await?
                 }
                 #[cfg(not(windows))]
                 {
                     return Err(Error::Io(_error));
                 }
             }
-            Err(_) => return Err(Error::Timeout("connecting to the nuvia helper".into())),
+            Err(_) => {
+                #[cfg(windows)]
+                {
+                    start_windows_service();
+                    connect_windows_retry(address).await?
+                }
+                #[cfg(not(windows))]
+                {
+                    return Err(Error::Timeout("connecting to the nuvia helper".into()));
+                }
+            }
         };
 
     stream
@@ -159,6 +158,25 @@ pub async fn connect(request: &StartRequest) -> Result<TcpStream> {
 
     set_active(true);
     Ok(stream)
+}
+
+#[cfg(windows)]
+async fn connect_windows_retry(address: SocketAddr) -> Result<TcpStream> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
+    loop {
+        let error =
+            match tokio::time::timeout(Duration::from_millis(500), TcpStream::connect(address))
+                .await
+            {
+                Ok(Ok(stream)) => return Ok(stream),
+                Ok(Err(error)) => Error::Io(error),
+                Err(_) => Error::Timeout("connecting to the nuvia helper".into()),
+            };
+        if tokio::time::Instant::now() >= deadline {
+            return Err(error);
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
 }
 
 #[cfg(windows)]
