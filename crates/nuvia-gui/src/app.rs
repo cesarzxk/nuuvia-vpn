@@ -1486,12 +1486,24 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
+            .default_width(340.0)
             .vscroll(true)
             .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -12.0])
-            .frame(theme::modal_frame())
+            .frame(
+                Frame::none()
+                    .fill(theme::CARD)
+                    .rounding(Rounding::same(14.0))
+                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
+                    .inner_margin(Margin {
+                        left: 18.0,
+                        right: 4.0,
+                        top: 14.0,
+                        bottom: 14.0,
+                    }),
+            )
             .show(ctx, |ui| {
-                let content_width = theme::MODAL_WIDTH;
+                let content_width = 326.0;
                 ui.set_width(content_width);
                 ui.horizontal(|ui| {
                     ui.label(
