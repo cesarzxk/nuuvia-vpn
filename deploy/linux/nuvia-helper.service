@@ -1,14 +1,9 @@
 [Unit]
 Description=Nuuvia privileged TAP helper
-After=network.target
+Requires=nuvia-helper.socket
+After=network.target nuvia-helper.socket
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/nuvia-helper --foreground
-Restart=on-failure
-RestartSec=2
-RuntimeDirectory=nuvia
-RuntimeDirectoryMode=0755
-
-[Install]
-WantedBy=multi-user.target
+Restart=no
