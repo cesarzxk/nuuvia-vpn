@@ -8,12 +8,14 @@ Encrypted virtual LAN for games. The goal is to open a game, host a LAN match,
 and have the other computer see the room as if both were on the same cable —
 including **broadcast** and **multicast** discovery.
 
-> Status: **1.5.0**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
+> Status: **1.4.5**. Minecraft Java 1.8.5 works Linux ↔ Windows on the LAN and
 > **across different networks** through the encrypted relay on the Oracle VPS in
 > São Paulo. The compact egui GUI supports multiple rooms, a single TAP/IP per
 > machine, 2–8-peer mesh with direct or relay paths, per-participant status, a
 > per-room firewall with app port import, public network discovery, a persisted
-> room list, and close-to-tray.
+> room list, close-to-tray and a single-instance window. A privileged on-demand
+> helper creates the TAP and routes, so the app runs without sudo or UAC
+> prompts after installation.
 
 > The product name is **Nuuvia**. Internal identifiers, binaries (`nuvia`,
 > `nuvia-gui`), packages, configuration paths, and TAP names keep the original
@@ -50,6 +52,12 @@ including **broadcast** and **multicast** discovery.
 - **Minecraft Java 1.8.5 playable Linux ↔ Windows** over the virtual IP: a world
   opened on Windows appears on Linux, and the multicast announcement was
   captured on `nuvia-vpn0`.
+- **Privileged on-demand helper** on Linux and Windows: the helper owns the
+  TAP, assigns its IP and installs the discovery routes, so the GUI runs as a
+  normal user. It starts on the first connection and exits after 30 seconds
+  idle.
+- **Single instance and tray**: only one GUI runs per user; opening Nuuvia
+  again restores the existing window from the tray or taskbar and exits.
 - **Internet mode (M5a)**: rendezvous, public endpoint discovery, and direct
   handshake between peers.
 - **Relay (M5b)**: when one side is behind CGNAT/symmetric NAT (mobile,
@@ -178,17 +186,22 @@ Rooms are saved in `rooms.toml` (in the same directory as the identity) and
 restored on startup without connecting automatically. When you close the
 window, Nuuvia keeps running in the **system tray**; click the icon to restore
 the window or use **Sair** from the tray/AJUDA menu. If the environment has no
-tray (StatusNotifier), closing exits normally.
+tray (StatusNotifier), closing exits normally. Only one GUI runs per user:
+opening Nuuvia again restores the existing window instead of starting another
+copy.
 
-On Linux, the GUI needs root/CAP_NET_ADMIN to create the TAP and install routes:
+When running from source without the installed helper, the GUI still needs
+root/CAP_NET_ADMIN to create the TAP and install routes:
 
 ```bash
 cargo build --release -p nuvia-gui
 sudo ./target/release/nuvia-gui
 ```
 
-If it starts without root, **Ajustes → Reabrir como admin** uses `pkexec`. On
-Windows, the `requireAdministrator` manifest requests UAC.
+With the `.deb` or the Windows installer, install once and then open the app as
+a normal user: the helper below creates the TAP and routes. If the helper is
+unavailable, the Linux launcher falls back to `pkexec` and the Windows portable
+build starts in limited mode.
 
 ### Privileged helper
 
@@ -326,7 +339,8 @@ On the Windows PC:
 
 1. Run `nuvia-setup-x86_64.exe` as administrator (recommended) or, with the
    zip, run `install-tap.ps1 -DriverDir .\driver` once.
-2. Open `nuvia-gui.exe` and accept UAC.
+2. Open `nuvia-gui.exe` from the shortcut. The installer no longer launches it
+   automatically; after installation no UAC is needed.
 3. **REDE** menu → **CRIAR REDE** or **ENTRAR EM REDE**.
 
 The installer and binaries are not code-signed yet; SmartScreen may warn. The
@@ -355,11 +369,13 @@ Validated on a real Windows 11 machine with Minecraft Java 1.8.5.
 
 Generates:
 
-- `dist/nuvia_1.5.0_amd64.deb` — installs `/usr/bin/nuvia-gui`,
-  `/usr/bin/nuvia`, `/usr/bin/lanprobe`, the shortcut, and the icons. The
-  launcher uses `pkexec` to ask for the password and create the TAP/routes;
-- `dist/nuvia-1.5.0-x86_64.AppImage` — portable. `AppRun` copies the binary to
-  an accessible path and calls `pkexec`; requires FUSE (`libfuse2`) or
+- `dist/nuvia_1.4.5_amd64.deb` — installs `/usr/bin/nuvia-gui`,
+  `/usr/bin/nuvia`, `/usr/bin/nuvia-helper`, `lanprobe`, the systemd socket and
+  service, the shortcut, and the icons. The GUI starts the helper on demand and
+  runs as a normal user; `pkexec` remains as fallback;
+- `dist/nuvia-1.4.5-x86_64.AppImage` — portable. `AppRun` uses the installed
+  helper socket when present; otherwise it copies the binary to an accessible
+  path and calls `pkexec`; requires FUSE (`libfuse2`) or
   `APPIMAGE_EXTRACT_AND_RUN=1`.
 
 Both keep the identity and room list in `~/.config/nuvia/`.
