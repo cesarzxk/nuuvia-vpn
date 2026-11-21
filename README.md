@@ -201,8 +201,9 @@ the app needs administrator rights.
 If the helper is not running, the Linux launcher falls back to the old
 `pkexec` mode and the Windows portable app starts in limited mode. The helper
 accepts only the Nuuvia TAP name, an address in `10.240.0.0/16`, prefix `/16`
-and an MTU between 576 and 9000. Its loopback token file is readable by local
-users, so avoid running it on a machine where local users are untrusted.
+and an MTU between 576 and 9000. The loopback token is restricted to the
+user who installed the app; install it with the account you will use. If no
+installing user can be detected, the token falls back to local-user readability.
 
 ### Server and path
 
