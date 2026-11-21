@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{ensure, Context, Result};
 use clap::Parser;
@@ -77,11 +78,23 @@ fn main() -> Result<()> {
 
 async fn run_server(shutdown: Option<Arc<Notify>>) -> Result<()> {
     let state_path = helper::state_path();
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .context("binding the helper loopback socket")?;
+    let existing = helper::read_state();
+    let token = existing
+        .as_ref()
+        .map(|state| state.token.clone())
+        .filter(|token| !token.is_empty())
+        .unwrap_or_else(random_token);
+    let port_hint = existing
+        .as_ref()
+        .map(|state| state.port)
+        .unwrap_or(helper::DEFAULT_HELPER_PORT);
+    let listener = match inherited_listener()? {
+        Some(listener) => listener,
+        None => TcpListener::bind(("127.0.0.1", port_hint))
+            .await
+            .with_context(|| format!("binding the helper loopback port {port_hint}"))?,
+    };
     let port = listener.local_addr()?.port();
-    let token = random_token();
     write_state(
         &state_path,
         &HelperState {
@@ -99,9 +112,17 @@ async fn run_server(shutdown: Option<Arc<Notify>>) -> Result<()> {
     let semaphore = Arc::new(Semaphore::new(1));
     loop {
         let accepted = tokio::select! {
-            result = listener.accept() => result,
-            _ = wait_for_shutdown(&shutdown) => break,
+            result = listener.accept() => Some(result),
+            _ = wait_for_shutdown(&shutdown) => None,
+            _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                if semaphore.available_permits() == 0 {
+                    continue;
+                }
+                tracing::info!("nuvia helper idle; exiting for socket activation");
+                break;
+            }
         };
+        let Some(accepted) = accepted else { break };
         let (stream, _) = match accepted {
             Ok(value) => value,
             Err(error) => {
@@ -124,8 +145,34 @@ async fn run_server(shutdown: Option<Arc<Notify>>) -> Result<()> {
         });
     }
 
-    let _ = std::fs::remove_file(&state_path);
     Ok(())
+}
+
+#[cfg(unix)]
+fn inherited_listener() -> Result<Option<TcpListener>> {
+    let fds = std::env::var("LISTEN_FDS")
+        .ok()
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0);
+    if fds <= 0 {
+        return Ok(None);
+    }
+    if let Some(pid) = std::env::var("LISTEN_PID")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+    {
+        ensure!(pid == std::process::id(), "LISTEN_PID does not match");
+    }
+    ensure!(fds == 1, "expected exactly one inherited socket");
+    use std::os::fd::FromRawFd;
+    let listener = unsafe { std::net::TcpListener::from_raw_fd(3) };
+    listener.set_nonblocking(true)?;
+    Ok(Some(TcpListener::from_std(listener)?))
+}
+
+#[cfg(not(unix))]
+fn inherited_listener() -> Result<Option<TcpListener>> {
+    Ok(None)
 }
 
 async fn serve_client(
@@ -258,17 +305,20 @@ fn validate_request(request: &StartRequest, ipv4: Ipv4Addr) -> Result<()> {
 
 #[cfg(windows)]
 fn install_service() -> Result<()> {
-    if let Some(sid) = current_user_sid() {
-        let config = helper::state_path().with_file_name("helper-user.txt");
-        if let Some(parent) = config.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("creating {}", parent.display()))?;
-        }
-        std::fs::write(&config, sid).with_context(|| format!("writing {}", config.display()))?;
-        tracing::info!(path = %config.display(), "restricted helper token to the installing user");
-    } else {
-        tracing::warn!("could not determine the installing user; the helper token will be readable by all local users");
+    let sid = current_user_sid().context("determining the installing user SID")?;
+    let config = helper::state_path().with_file_name("helper-user.txt");
+    if let Some(parent) = config.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
     }
+    std::fs::write(&config, &sid).with_context(|| format!("writing {}", config.display()))?;
+
+    let mut state = helper::read_state().unwrap_or(HelperState {
+        port: helper::DEFAULT_HELPER_PORT,
+        token: random_token(),
+    });
+    state.port = helper::DEFAULT_HELPER_PORT;
+    write_state(&helper::state_path(), &state)?;
 
     let executable = std::env::current_exe().context("locating nuvia-helper.exe")?;
     let binary = format!("\"{}\" --service", executable.display());
@@ -286,16 +336,20 @@ fn install_service() -> Result<()> {
             "binPath=",
             &binary,
             "start=",
-            "auto",
+            "demand",
         ])
         .status()
         .context("running sc create")?;
     ensure!(status.success(), "sc create failed");
+
+    let sddl = format!(
+        "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRP;;;{sid})"
+    );
     let status = std::process::Command::new("sc.exe")
-        .args(["start", "nuvia-helper"])
+        .args(["sdset", "nuvia-helper", &sddl])
         .status()
-        .context("running sc start")?;
-    ensure!(status.success(), "sc start failed");
+        .context("running sc sdset")?;
+    ensure!(status.success(), "sc sdset failed");
     Ok(())
 }
 
