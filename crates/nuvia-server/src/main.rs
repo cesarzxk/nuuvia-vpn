@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use nuvia_protocol::{
     decode_relay, hex_string, parse_hex, peer_tag, Hello, HelloAck, PeerInfo, PublicRoom,
     PublicRoomsResponse, RegisterRequest, RegisterResponse, RelayPacket, BROADCAST_TAG,
-    PEER_ID_LEN, PROTOCOL_VERSION, ROOM_ID_LEN, TOKEN_LEN,
+    DEFAULT_MAX_PEERS, MAX_PEERS_PER_ROOM, PEER_ID_LEN, PROTOCOL_VERSION, ROOM_ID_LEN, TOKEN_LEN,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -33,6 +33,7 @@ struct Config {
     public_url: String,
     peer_ttl_secs: u64,
     room_ttl_secs: u64,
+    /// Hard cap for any room. A client may request a lower per-room limit.
     max_peers_per_room: usize,
     max_rooms: usize,
 }
@@ -45,7 +46,7 @@ impl Default for Config {
             public_url: String::new(),
             peer_ttl_secs: 60,
             room_ttl_secs: 86_400,
-            max_peers_per_room: 8,
+            max_peers_per_room: MAX_PEERS_PER_ROOM as usize,
             max_rooms: 1024,
         }
     }
@@ -67,6 +68,8 @@ struct Room {
     public: bool,
     has_password: bool,
     name: Option<String>,
+    /// Capacity this room was created with, always `<=` the server cap.
+    max_peers: usize,
 }
 
 struct AppState {
@@ -172,6 +175,18 @@ fn load_config(path: Option<&Path>) -> Result<Config> {
     }
 }
 
+/// Resolves the capacity of a new room.
+///
+/// A missing value preserves the legacy default of 8, while an explicit value
+/// is clamped to the server's hard cap. The GUI omits the field, so it keeps
+/// creating rooms with 8; the CLI can request up to 32.
+fn room_max_peers(requested: Option<u16>, cap: usize) -> usize {
+    requested
+        .map(usize::from)
+        .unwrap_or(DEFAULT_MAX_PEERS as usize)
+        .clamp(2, cap.max(2))
+}
+
 async fn register(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RegisterRequest>,
@@ -214,6 +229,7 @@ async fn register(
         {
             return Err((StatusCode::BAD_REQUEST, "room name is too long".into()));
         }
+        let max_peers = room_max_peers(request.max_peers, state.config.max_peers_per_room);
         rooms.insert(
             room_id,
             Room {
@@ -223,9 +239,10 @@ async fn register(
                 public: request.public && room_name.is_some(),
                 has_password: request.has_password,
                 name: room_name,
+                max_peers,
             },
         );
-        info!(room = %hex_string(&room_id), "room created");
+        info!(room = %hex_string(&room_id), max_peers, "room created");
     }
 
     let room = rooms.get_mut(&room_id).expect("room inserted above");
@@ -234,7 +251,7 @@ async fn register(
     }
 
     let now = Instant::now();
-    if !room.peers.contains_key(&peer_id) && room.peers.len() >= state.config.max_peers_per_room {
+    if !room.peers.contains_key(&peer_id) && room.peers.len() >= room.max_peers {
         return Err((StatusCode::CONFLICT, "room is full".into()));
     }
 
@@ -309,7 +326,7 @@ async fn public_rooms(State(state): State<Arc<AppState>>) -> Json<PublicRoomsRes
                 name: name.clone(),
                 has_password: room.has_password,
                 peers,
-                max_peers: state.config.max_peers_per_room,
+                max_peers: room.max_peers,
             })
         })
         .collect();
@@ -398,6 +415,10 @@ async fn handle_hello(state: &AppState, hello: Hello, source: SocketAddr) -> Hel
     };
     if room.token_hash != token_hash {
         return HelloAck::invalid_token();
+    }
+
+    if !room.peers.contains_key(&hello.peer_id) && room.peers.len() >= room.max_peers {
+        return HelloAck::room_full();
     }
 
     let now = Instant::now();
@@ -517,5 +538,15 @@ mod tests {
         assert_eq!(sanitize_room_name("a\nb").as_deref(), Some("ab"));
         assert_eq!(sanitize_room_name("   "), None);
         assert_eq!(sanitize_room_name(&"x".repeat(80)).unwrap().len(), 80);
+    }
+
+    #[test]
+    fn room_capacity_keeps_the_legacy_default_and_clamps() {
+        assert_eq!(room_max_peers(None, 32), 8);
+        assert_eq!(room_max_peers(Some(16), 32), 16);
+        assert_eq!(room_max_peers(Some(32), 32), 32);
+        assert_eq!(room_max_peers(Some(64), 32), 32);
+        assert_eq!(room_max_peers(Some(1), 32), 2);
+        assert_eq!(room_max_peers(Some(16), 8), 8);
     }
 }
