@@ -2729,7 +2729,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-cli"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2744,7 +2744,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-core"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "anyhow",
  "argon2",
@@ -2770,7 +2770,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-gui"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "anyhow",
  "eframe",
@@ -2793,7 +2793,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-helper"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2809,7 +2809,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-probe"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2818,7 +2818,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-protocol"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "base64 0.22.1",
  "hex",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "nuvia-server"
-version = "1.5.0"
+version = "1.4.5"
 dependencies = [
  "anyhow",
  "axum",
