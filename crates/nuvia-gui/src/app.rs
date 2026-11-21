@@ -1486,6 +1486,8 @@ impl NuviaApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
+            .vscroll(true)
+            .max_height(470.0)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, -12.0])
             .frame(theme::modal_frame())
             .show(ctx, |ui| {
