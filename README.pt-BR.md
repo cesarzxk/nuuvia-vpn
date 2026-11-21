@@ -123,7 +123,9 @@ pede servidor, caminho, TAP, porta, papel nem IP.
 
 O primeiro peer cria a sala no servidor; os demais entram com o mesmo nome e
 senha. A GUI suporta até 8 participantes por sala e várias salas ao mesmo
-tempo, todas no mesmo TAP/IP local. Para jogar:
+tempo, todas no mesmo TAP/IP local. O servidor aceita até 32, então
+`nuvia up --max-peers N` pode criar uma sala maior enquanto a GUI mantém o
+padrão de 8. Para jogar:
 
 1. Deixe a rede conectada.
 2. Abra o jogo **depois** do Nuuvia e use **Open to LAN**.
@@ -276,7 +278,9 @@ sudo ./target/release/nuvia up \
 O menor `public_key` fica com `.1` e o maior com `.2`, dentro de
 `10.240.<octeto-da-sala>.0/24`. Use `--ip 10.240.x.y/24` para forçar outro
 endereço e `--room-token` para usar um token avulso. `--relay` força a VPS;
-`--direct` força só P2P. Sem `--relay`/`--direct`, o CLI usa AUTO.
+`--direct` força só P2P. Sem `--relay`/`--direct`, o CLI usa AUTO. Para criar
+uma sala com mais de 8 participantes, use `--max-peers N` (2–32); a GUI
+continua criando salas com 8.
 
 ### LAN manual
 
