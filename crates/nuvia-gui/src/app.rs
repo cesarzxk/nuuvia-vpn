@@ -220,6 +220,9 @@ pub struct NuviaApp {
     public_rooms_error: Option<String>,
     public_rooms_loading: bool,
     public_rooms_refresh_at: Option<Instant>,
+    show_public_rooms: bool,
+    public_rooms_query: String,
+    focus_public_search: bool,
 
     identity_path: PathBuf,
     identity_public: Option<String>,
@@ -345,6 +348,9 @@ impl NuviaApp {
             public_rooms_error: None,
             public_rooms_loading: false,
             public_rooms_refresh_at: None,
+            show_public_rooms: false,
+            public_rooms_query: String::new(),
+            focus_public_search: false,
             identity_path,
             identity_public,
             identity_name,
@@ -430,6 +436,9 @@ impl NuviaApp {
         self.public_rooms_error = None;
         self.public_rooms_loading = false;
         self.public_rooms_refresh_at = (mode == AddMode::Join).then(std::time::Instant::now);
+        self.show_public_rooms = false;
+        self.public_rooms_query.clear();
+        self.focus_public_search = false;
         self.add_mode = mode;
         self.show_add = true;
         self.focus_add = true;
@@ -458,6 +467,7 @@ impl NuviaApp {
         if self.pending_add.is_some() {
             return;
         }
+        self.show_public_rooms = false;
         if name.is_empty() {
             self.error = Some(t.err_enter_room_name.into());
             return;
@@ -1272,7 +1282,6 @@ impl NuviaApp {
 
         let mut open = true;
         let mut close = false;
-        let mut public_action: Option<(String, bool)> = None;
         let t = self.language.strings();
         let pending = self.pending_add.is_some();
         let creating = matches!(self.add_mode, AddMode::Create);
@@ -1310,80 +1319,32 @@ impl NuviaApp {
                 ui.add_space(10.0);
 
                 if !creating {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(t.public_rooms)
-                                .font(theme::semibold(10.0))
-                                .color(theme::ACCENT),
-                        )
-                        .on_hover_text(t.public_rooms_hint);
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui
-                                .add_enabled(
-                                    !self.public_rooms_loading,
-                                    egui::Button::new(
-                                        RichText::new(t.public_refresh)
-                                            .font(theme::semibold(8.5))
-                                            .color(theme::TEXT),
-                                    )
-                                    .min_size(Vec2::new(0.0, 22.0)),
-                                )
-                                .clicked()
-                            {
-                                self.refresh_public_rooms();
-                            }
-                        });
-                    });
+                    ui.label(
+                        RichText::new(t.public_rooms)
+                            .font(theme::semibold(10.0))
+                            .color(theme::ACCENT),
+                    )
+                    .on_hover_text(t.public_rooms_hint);
                     ui.add_space(2.0);
-                    let choose = if self.public_rooms_loading && self.public_rooms.is_empty() {
-                        t.public_searching
-                    } else if self.public_rooms_error.is_some() {
-                        t.public_error
-                    } else if self.public_rooms.is_empty() {
-                        t.public_empty
-                    } else {
-                        t.public_choose
-                    };
-                    let has_rooms = !self.public_rooms.is_empty();
-                    ui.add_enabled_ui(has_rooms, |ui| {
-                        egui::ComboBox::from_id_salt("public-networks")
-                            .width(320.0)
-                            .selected_text(RichText::new(choose).size(11.0).color(if has_rooms {
-                                theme::TEXT
-                            } else {
-                                theme::MUTED
-                            }))
-                            .show_ui(ui, |ui| {
-                                for room in &self.public_rooms {
-                                    let full = room.peers >= room.max_peers;
-                                    let (state, color) = if full {
-                                        (t.public_full, theme::MUTED)
-                                    } else if room.has_password {
-                                        (t.public_locked, theme::AMBER)
-                                    } else {
-                                        (t.public_open, theme::ACCENT)
-                                    };
-                                    let label = format!(
-                                        "{state}  ·  {}  ·  {}/{}",
-                                        room.name, room.peers, room.max_peers
-                                    );
-                                    let clicked = ui
-                                        .add_enabled_ui(!full, |ui| {
-                                            ui.selectable_label(
-                                                false,
-                                                RichText::new(label).size(11.0).color(color),
-                                            )
-                                        })
-                                        .inner
-                                        .clicked();
-                                    if clicked {
-                                        public_action =
-                                            Some((room.name.clone(), room.has_password));
-                                        ui.close_menu();
-                                    }
-                                }
-                            });
-                    });
+                    let search = ui.add_sized(
+                        [320.0, 34.0],
+                        egui::Button::new(
+                            RichText::new(t.public_search_action)
+                                .size(11.0)
+                                .color(theme::TEXT),
+                        )
+                        .fill(theme::CARD_2)
+                        .stroke(Stroke::new(1.0_f32, theme::BORDER))
+                        .rounding(Rounding::same(8.0)),
+                    );
+                    if search.clicked() {
+                        self.show_public_rooms = true;
+                        self.public_rooms_query.clear();
+                        self.focus_public_search = true;
+                        self.public_rooms_error = None;
+                        self.public_rooms_refresh_at = Some(Instant::now());
+                        self.refresh_public_rooms();
+                    }
                     ui.add_space(8.0);
                     ui.separator();
                     ui.add_space(6.0);
@@ -1504,25 +1465,201 @@ impl NuviaApp {
                         });
                 }
             });
-        if let Some((name, has_password)) = public_action {
-            self.new_name = name;
-            self.new_password.clear();
-            self.new_public = true;
-            self.show_password = false;
-            self.error = None;
-            if has_password {
-                self.focus_password = true;
-            } else {
-                self.join();
-            }
-        }
         self.show_add = open && !close;
         if !self.show_add {
+            self.show_public_rooms = false;
             if let Some(pending) = self.pending_add.take() {
                 self.backend.leave(&pending.room);
             }
             self.error = None;
             self.error_room = None;
+        }
+    }
+
+    fn public_rooms_window(&mut self, ctx: &Context) {
+        if !self.show_public_rooms {
+            return;
+        }
+        if !self.show_add {
+            self.show_public_rooms = false;
+            return;
+        }
+
+        let t = self.language.strings();
+        let mut open = self.show_public_rooms;
+        let mut selected: Option<(String, bool)> = None;
+        egui::Window::new(t.public_search_title)
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(360.0)
+            .vscroll(true)
+            .max_height(470.0)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, -12.0])
+            .frame(
+                Frame::none()
+                    .fill(theme::CARD)
+                    .rounding(Rounding::same(14.0))
+                    .stroke(Stroke::new(1.0_f32, theme::BORDER))
+                    .inner_margin(Margin::same(18.0)),
+            )
+            .show(ctx, |ui| {
+                let content_width = 340.0;
+                ui.set_width(content_width);
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(t.public_search_hint)
+                            .size(10.0)
+                            .color(theme::MUTED),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui
+                            .add_enabled(
+                                !self.public_rooms_loading,
+                                egui::Button::new(
+                                    RichText::new(t.public_refresh)
+                                        .font(theme::semibold(8.5))
+                                        .color(theme::TEXT),
+                                )
+                                .min_size(Vec2::new(0.0, 22.0)),
+                            )
+                            .clicked()
+                        {
+                            self.refresh_public_rooms();
+                        }
+                    });
+                });
+                ui.add_space(4.0);
+                let search = ui.add_sized(
+                    [content_width, 34.0],
+                    TextEdit::singleline(&mut self.public_rooms_query)
+                        .hint_text(t.public_search_placeholder)
+                        .text_color(theme::TEXT)
+                        .background_color(theme::CARD_2)
+                        .vertical_align(Align::Center),
+                );
+                if self.focus_public_search {
+                    search.request_focus();
+                    self.focus_public_search = false;
+                }
+                ui.add_space(6.0);
+
+                if self.public_rooms_loading && self.public_rooms.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            RichText::new(t.public_searching)
+                                .size(10.0)
+                                .color(theme::MUTED),
+                        );
+                    });
+                } else if let Some(error) = &self.public_rooms_error {
+                    ui.label(RichText::new(t.public_error).size(10.0).color(theme::RED))
+                        .on_hover_text(error);
+                } else if self.public_rooms.is_empty() {
+                    ui.label(RichText::new(t.public_empty).size(10.0).color(theme::MUTED));
+                } else {
+                    let query = self.public_rooms_query.trim().to_lowercase();
+                    let filtered: Vec<&PublicRoom> = self
+                        .public_rooms
+                        .iter()
+                        .filter(|room| {
+                            query.is_empty() || room.name.to_lowercase().contains(&query)
+                        })
+                        .collect();
+                    if filtered.is_empty() {
+                        ui.label(
+                            RichText::new(t.public_search_empty)
+                                .size(10.0)
+                                .color(theme::MUTED),
+                        );
+                    } else {
+                        ScrollArea::vertical()
+                            .max_height(260.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                let row_width = ui.available_width();
+                                for room in filtered {
+                                    let full = room.peers >= room.max_peers;
+                                    let button_width = 58.0;
+                                    let spacing = ui.spacing().item_spacing.x;
+                                    let text_width =
+                                        (row_width - button_width - spacing).max(100.0);
+                                    ui.horizontal(|ui| {
+                                        ui.allocate_ui_with_layout(
+                                            Vec2::new(text_width, 34.0),
+                                            Layout::top_down(Align::Min),
+                                            |ui| {
+                                                ui.set_min_width(text_width);
+                                                ui.horizontal(|ui| {
+                                                    ui.add(
+                                                        egui::Label::new(
+                                                            RichText::new(&room.name)
+                                                                .font(theme::semibold(11.5))
+                                                                .color(theme::TEXT),
+                                                        )
+                                                        .truncate(),
+                                                    );
+                                                    let (badge, color) = if room.has_password {
+                                                        (t.public_locked, theme::AMBER)
+                                                    } else {
+                                                        (t.public_open, theme::ACCENT)
+                                                    };
+                                                    theme::badge(ui, badge, color);
+                                                });
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "{}/{}",
+                                                        room.peers, room.max_peers
+                                                    ))
+                                                    .size(9.0)
+                                                    .color(theme::MUTED),
+                                                );
+                                            },
+                                        );
+                                        if full {
+                                            ui.add_enabled(
+                                                false,
+                                                egui::Button::new(
+                                                    RichText::new(t.public_full)
+                                                        .font(theme::semibold(8.5))
+                                                        .color(theme::MUTED),
+                                                )
+                                                .min_size(Vec2::new(button_width, 22.0)),
+                                            );
+                                        } else if ui
+                                            .add_sized(
+                                                [button_width, 22.0],
+                                                egui::Button::new(
+                                                    RichText::new(t.public_select)
+                                                        .font(theme::semibold(9.0))
+                                                        .color(theme::ACCENT),
+                                                )
+                                                .fill(theme::CARD_3)
+                                                .stroke(Stroke::new(1.0_f32, theme::BORDER)),
+                                            )
+                                            .clicked()
+                                        {
+                                            selected = Some((room.name.clone(), room.has_password));
+                                        }
+                                    });
+                                    ui.add_space(2.0);
+                                }
+                            });
+                    }
+                }
+            });
+        self.show_public_rooms = open;
+        if let Some((name, has_password)) = selected {
+            self.new_name = name;
+            self.new_password.clear();
+            self.new_public = true;
+            self.show_password = false;
+            self.focus_password = has_password;
+            self.focus_add = false;
+            self.show_public_rooms = false;
+            self.error = None;
         }
     }
 
@@ -2050,6 +2187,7 @@ impl eframe::App for NuviaApp {
 
         self.settings_window(ctx);
         self.add_window(ctx);
+        self.public_rooms_window(ctx);
         self.about_window(ctx);
         self.firewall_modal(ctx);
         self.firewall_window(ctx);
