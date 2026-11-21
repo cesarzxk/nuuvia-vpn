@@ -192,13 +192,15 @@ Windows, the `requireAdministrator` manifest requests UAC.
 
 ### Privileged helper
 
-The `.deb` installs `nuvia-helper` as a systemd service, and the Windows
-installer registers it as a service. The GUI runs as a normal user and
+The `.deb` installs `nuvia-helper` behind a systemd **socket**; the service
+starts on the first GUI connection and exits after 30 seconds idle. The
+Windows installer registers the helper as a **demand-start** service and the
+GUI starts it when a room needs the TAP. The GUI runs as a normal user and
 exchanges TAP frames with the helper over loopback; the helper owns the TAP,
 assigns its IP and installs the discovery routes. Only installing or updating
 the app needs administrator rights.
 
-If the helper is not running, the Linux launcher falls back to the old
+If the helper is not available, the Linux launcher falls back to the old
 `pkexec` mode and the Windows portable app starts in limited mode. The helper
 accepts only the Nuuvia TAP name, an address in `10.240.0.0/16`, prefix `/16`
 and an MTU between 576 and 9000. The loopback token is restricted to the
