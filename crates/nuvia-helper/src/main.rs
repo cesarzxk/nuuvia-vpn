@@ -43,6 +43,40 @@ fn main() -> Result<()> {
     if cli.foreground {
         tracing::debug!("starting helper in foreground mode");
     }
+    #[cfg(windows)]
+    if cli.service {
+        let log_path = helper::state_path().with_file_name("helper.log");
+        if let Some(parent) = log_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let path = log_path.clone();
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .with_target(false)
+            .with_ansi(false)
+            .with_writer(move || {
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&path)
+                    .unwrap_or_else(|_| std::fs::File::create("NUL").expect("opening NUL"))
+            })
+            .init();
+    }
+    #[cfg(windows)]
+    if !cli.service {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .with_target(false)
+            .init();
+    }
+    #[cfg(not(windows))]
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
