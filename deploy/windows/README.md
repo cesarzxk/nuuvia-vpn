@@ -51,8 +51,9 @@ públicas com os selos ABERTA/COM SENHA. Sem senha, a chave é derivada do nome,
 então qualquer pessoa que souber o nome pode entrar e ler o tráfego. O firewall
 roda no mesh da GUI; o modo pairwise do CLI não usa esse filtro.
 
-O instalador registra o serviço privilegiado `nuvia-helper`; a GUI roda como
-usuário normal e usa o helper para criar o TAP e as rotas. O token do helper
+O instalador registra o serviço privilegiado `nuvia-helper` como
+**demand-start**; a GUI o inicia quando uma sala precisa do TAP e ele encerra
+após 30 segundos ocioso. A GUI roda como usuário normal. O token do helper
 fica restrito ao usuário que instalou, então instale com a mesma conta que vai
 usar o app. No zip portátil, rode `nuvia-helper.exe --install-service` como
 administrador uma vez.
