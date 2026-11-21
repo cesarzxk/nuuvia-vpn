@@ -52,8 +52,10 @@ então qualquer pessoa que souber o nome pode entrar e ler o tráfego. O firewal
 roda no mesh da GUI; o modo pairwise do CLI não usa esse filtro.
 
 O instalador registra o serviço privilegiado `nuvia-helper`; a GUI roda como
-usuário normal e usa o helper para criar o TAP e as rotas. No zip portátil, rode
-`nuvia-helper.exe --install-service` como administrador uma vez.
+usuário normal e usa o helper para criar o TAP e as rotas. O token do helper
+fica restrito ao usuário que instalou, então instale com a mesma conta que vai
+usar o app. No zip portátil, rode `nuvia-helper.exe --install-service` como
+administrador uma vez.
 
 O menu **REDE** também permite adicionar outras redes. Todas usam o **mesmo
 adaptador `nuvia0` e o mesmo IP `10.240.x.y/16`**; cada sala tem sua porta UDP,
