@@ -18,6 +18,9 @@ use crate::{Error, Result};
 /// Largest Ethernet frame accepted over the helper channel.
 pub const MAX_FRAME: usize = 65_535;
 
+/// Fixed loopback port used by socket activation and the Windows service.
+pub const DEFAULT_HELPER_PORT: u16 = 4647;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HelperState {
     pub port: u16,
@@ -50,7 +53,7 @@ pub fn state_path() -> PathBuf {
 
     #[cfg(target_os = "linux")]
     {
-        PathBuf::from("/run/nuvia/helper.json")
+        PathBuf::from("/etc/nuvia/helper.json")
     }
 
     #[cfg(windows)]
@@ -92,11 +95,35 @@ pub(crate) fn set_active(value: bool) {
 /// Connects to the helper, authenticates, asks it to create the TAP and
 /// returns the frame stream.
 pub async fn connect(request: &StartRequest) -> Result<TcpStream> {
-    let state = read_state().ok_or_else(|| Error::config("nuvia helper is not running"))?;
+    let state = read_state().ok_or_else(|| Error::config("nuvia helper is not installed"))?;
     let address = SocketAddr::from(([127, 0, 0, 1], state.port));
-    let mut stream = tokio::time::timeout(Duration::from_millis(800), TcpStream::connect(address))
-        .await
-        .map_err(|_| Error::Timeout("connecting to the nuvia helper".into()))??;
+    let mut stream =
+        match tokio::time::timeout(Duration::from_millis(800), TcpStream::connect(address)).await {
+            Ok(Ok(stream)) => stream,
+            Ok(Err(_error)) => {
+                #[cfg(windows)]
+                {
+                    start_windows_service();
+                    let deadline = tokio::time::Instant::now() + Duration::from_secs(6);
+                    loop {
+                        match TcpStream::connect(address).await {
+                            Ok(stream) => break stream,
+                            Err(error) => {
+                                if tokio::time::Instant::now() >= deadline {
+                                    return Err(Error::Io(error));
+                                }
+                                tokio::time::sleep(Duration::from_millis(250)).await;
+                            }
+                        }
+                    }
+                }
+                #[cfg(not(windows))]
+                {
+                    return Err(Error::Io(_error));
+                }
+            }
+            Err(_) => return Err(Error::Timeout("connecting to the nuvia helper".into())),
+        };
 
     stream
         .write_all(format!("{}\n", state.token).as_bytes())
@@ -132,6 +159,13 @@ pub async fn connect(request: &StartRequest) -> Result<TcpStream> {
 
     set_active(true);
     Ok(stream)
+}
+
+#[cfg(windows)]
+fn start_windows_service() {
+    let _ = std::process::Command::new("sc.exe")
+        .args(["start", "nuvia-helper"])
+        .output();
 }
 
 pub async fn read_frame<R>(reader: &mut R) -> Result<Vec<u8>>
