@@ -317,7 +317,8 @@ Implementado no M5b (servidor e cliente). Envelope externo:
   rejeita qualquer injeção.
 - Broadcast/multicast: o cliente mesh envia um envelope com `dst_tag = 0`; o
   servidor reenvia o mesmo `inner` para todos os outros peers. O custo cresce
-  com o número de participantes (até 8).
+  com o número de participantes. O padrão da GUI é 8; o servidor aceita salas
+  customizadas de até 32 (`--max-peers` no CLI).
 - Keepalive de dados a cada 10 s; o relay também atualiza o `last_seen`, então o
   TTL de 60 s não derruba uma sessão ativa.
 - Ainda **não há cap de banda por sala**; o servidor de 1 GB atende o uso atual.
